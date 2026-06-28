@@ -16,6 +16,8 @@ interface AppShellProps {
   cooldownSeconds: number;
   sourceState: DataSourceState;
   isFromCache: boolean;
+  activeSection: string;
+  onNavigate: (section: string) => void;
 }
 
 export function AppShell({
@@ -31,8 +33,9 @@ export function AppShell({
   cooldownSeconds,
   sourceState,
   isFromCache,
+  activeSection,
+  onNavigate,
 }: AppShellProps) {
-  const [activeSection, setActiveSection] = useState('command');
   const [lockedNotification, setLockedNotification] = useState<string | null>(null);
 
   const handleLockedClick = (label: string) => {
@@ -45,7 +48,7 @@ export function AppShell({
       {/* Side navigation */}
       <SideNavigation
         activeSection={activeSection}
-        onNavigate={setActiveSection}
+        onNavigate={onNavigate}
         onLockedClick={handleLockedClick}
       />
 
