@@ -5,9 +5,10 @@ import type { ChampionshipDataSnapshot } from '../types/f1';
 interface DriverStandingsPanelProps {
   data: ChampionshipDataSnapshot | null;
   isLoading: boolean;
+  onDriverSelect?: (driverNumber: number) => void;
 }
 
-export function DriverStandingsPanel({ data, isLoading }: DriverStandingsPanelProps) {
+export function DriverStandingsPanel({ data, isLoading, onDriverSelect }: DriverStandingsPanelProps) {
   const [expanded, setExpanded] = useState(false);
 
   const standings = data?.driverStandings || [];
@@ -65,12 +66,14 @@ export function DriverStandingsPanel({ data, isLoading }: DriverStandingsPanelPr
         {/* Table rows */}
         <div className="divide-y divide-white/5">
           {displayStandings.map((standing, idx) => (
-            <div
+            <button
+              type="button"
               key={standing.driverNumber}
+              onClick={() => onDriverSelect?.(standing.driverNumber)}
               className={`
-                grid grid-cols-[40px_1fr_1.2fr_60px_70px_50px] lg:grid-cols-[40px_1fr_1.2fr_60px_80px_80px_50px]
-                gap-2 px-4 py-3 items-center
-                transition-colors hover:bg-white/[0.02]
+                w-full grid grid-cols-[40px_1fr_1.2fr_60px_70px_50px] lg:grid-cols-[40px_1fr_1.2fr_60px_80px_80px_50px]
+                gap-2 px-4 py-3 items-center text-left
+                transition-colors hover:bg-white/[0.02] cursor-pointer
                 ${idx === 0 ? 'bg-crimson/5' : ''}
               `}
             >
@@ -142,7 +145,7 @@ export function DriverStandingsPanel({ data, isLoading }: DriverStandingsPanelPr
                   : '—'
                 }
               </div>
-            </div>
+            </button>
           ))}
         </div>
 

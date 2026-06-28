@@ -22,7 +22,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'command', label: 'COMMAND CENTRE', icon: LayoutDashboard, locked: false },
   { id: 'championship', label: 'CHAMPIONSHIP', icon: Trophy, locked: false },
-  { id: 'driver-intel', label: 'DRIVER INTEL', icon: Users, locked: true },
+  { id: 'driver-intel', label: 'DRIVER INTEL', icon: Users, locked: false },
   { id: 'team', label: 'TEAM PERFORMANCE', icon: BarChart3, locked: true },
   { id: 'circuit', label: 'CIRCUIT MATRIX', icon: Map, locked: true },
   { id: 'scenario', label: 'SCENARIO LAB', icon: FlaskConical, locked: true },
