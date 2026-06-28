@@ -15,16 +15,52 @@ interface NavItem {
   id: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
+  section: string;
 }
 
 const navItems: NavItem[] = [
-  { id: 'command', label: 'COMMAND CENTRE', icon: LayoutDashboard },
-  { id: 'championship', label: 'CHAMPIONSHIP', icon: Trophy },
-  { id: 'driver-intel', label: 'DRIVER INTEL', icon: Users },
-  { id: 'team', label: 'TEAM PERFORMANCE', icon: BarChart3 },
-  { id: 'circuit', label: 'CIRCUIT MATRIX', icon: Map },
-  { id: 'scenario', label: 'SCENARIO LAB', icon: FlaskConical },
-  { id: 'notes', label: 'MODEL NOTES', icon: FileText },
+  {
+    id: 'command',
+    label: 'COMMAND CENTRE',
+    icon: LayoutDashboard,
+    section: 'OPERATIONS',
+  },
+  {
+    id: 'championship',
+    label: 'CHAMPIONSHIP',
+    icon: Trophy,
+    section: 'ANALYSIS',
+  },
+  {
+    id: 'driver-intel',
+    label: 'DRIVER INTEL',
+    icon: Users,
+    section: 'ANALYSIS',
+  },
+  {
+    id: 'team',
+    label: 'TEAM PERFORMANCE',
+    icon: BarChart3,
+    section: 'ANALYSIS',
+  },
+  {
+    id: 'circuit',
+    label: 'CIRCUIT MATRIX',
+    icon: Map,
+    section: 'ANALYSIS',
+  },
+  {
+    id: 'scenario',
+    label: 'SCENARIO LAB',
+    icon: FlaskConical,
+    section: 'MODELS',
+  },
+  {
+    id: 'notes',
+    label: 'MODEL NOTES',
+    icon: FileText,
+    section: 'MODELS',
+  },
 ];
 
 interface SideNavigationProps {
@@ -32,109 +68,171 @@ interface SideNavigationProps {
   onNavigate: (section: string) => void;
 }
 
-export function SideNavigation({ activeSection, onNavigate }: SideNavigationProps) {
+export function SideNavigation({
+  activeSection,
+  onNavigate,
+}: SideNavigationProps) {
   const [collapsed, setCollapsed] = useState(false);
+
+  let previousSection = '';
 
   return (
     <nav
       className={`
-        relative flex flex-col h-full border-r border-white/10
-        bg-gradient-to-b from-graphite/95 to-graphite-light/95
-        backdrop-blur-sm
-        transition-all duration-300
-        ${collapsed ? 'w-16' : 'w-56'}
+        relative flex h-full flex-col border-r border-white/[0.09]
+        bg-gradient-to-b from-[#090a0d]/95 via-graphite/95 to-[#08090b]/95
+        shadow-[20px_0_45px_rgba(0,0,0,0.22)]
+        backdrop-blur-xl
+        transition-[width] duration-300 ease-out
+        ${collapsed ? 'w-[76px]' : 'w-[272px]'}
       `}
     >
-      {/* APEX wordmark */}
-      <div className="flex items-center justify-center h-16 border-b border-white/10">
-        <div className="relative flex items-center gap-2">
-          <span className="text-xl font-black tracking-[0.2em] text-white">
-            {collapsed ? 'A' : 'APEX'}
-          </span>
-          <span className="text-cyan text-xs font-bold">26</span>
+      {/* Wordmark */}
+      <div className="relative flex h-[76px] shrink-0 items-center border-b border-white/[0.09] px-5">
+        <div className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-cyan/40 via-cyan/10 to-transparent" />
+
+        <div
+          className={`
+            flex items-center gap-3
+            ${collapsed ? 'mx-auto' : ''}
+          `}
+        >
+          <div className="relative">
+            <div className="absolute -inset-2 rounded-full bg-cyan/[0.05] blur-md" />
+            <span className="relative text-[22px] font-black tracking-[0.22em] text-white">
+              {collapsed ? 'A' : 'APEX'}
+            </span>
+          </div>
+
+          {!collapsed && (
+            <span className="border-l border-white/10 pl-3 text-[11px] font-bold tracking-[0.16em] text-cyan">
+              26
+            </span>
+          )}
         </div>
+
+        {!collapsed && (
+          <div className="absolute bottom-3 left-5 flex items-center gap-2">
+            <div className="h-1 w-1 rounded-full bg-cyan shadow-[0_0_9px_rgba(0,255,255,0.7)]" />
+            <span className="text-[8px] tracking-[0.2em] text-white/25">
+              INTELLIGENCE OS
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Navigation items */}
-      <div className="flex-1 py-4 overflow-y-auto overflow-x-hidden">
+      {/* Nav */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-5">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
+          const showSectionLabel = !collapsed && item.section !== previousSection;
+
+          previousSection = item.section;
 
           return (
-            <button
-              key={item.id}
-              onClick={() => onNavigate(item.id)}
-              className={`
-                group relative flex items-center w-full gap-3 px-4 py-3
-                transition-all duration-200
-                ${isActive ? 'text-white' : 'text-white/50 hover:text-white/80'}
-              `}
-            >
-              {/* Active indicator */}
-              {isActive && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-[2px] bg-crimson" />
+            <div key={item.id}>
+              {showSectionLabel && (
+                <div className="mb-2 mt-5 px-3 first:mt-0">
+                  <span className="text-[8px] font-semibold tracking-[0.24em] text-white/20">
+                    {item.section}
+                  </span>
+                </div>
               )}
 
-              {/* Scanning line for active */}
-              {isActive && (
-                <div className="absolute inset-0 bg-gradient-to-r from-crimson/5 to-transparent" />
-              )}
-
-              <Icon
+              <button
+                onClick={() => onNavigate(item.id)}
+                title={collapsed ? item.label : undefined}
                 className={`
-                  w-5 h-5 flex-shrink-0
-                  ${isActive ? 'text-crimson' : 'group-hover:text-cyan'}
-                  transition-colors
-                `}
-              />
-              <span
-                className={`
-                  text-xs tracking-wider font-medium
-                  transition-opacity duration-200
-                  ${collapsed ? 'opacity-0 w-0' : 'opacity-100'}
+                  group relative mb-1 flex w-full items-center gap-3 overflow-hidden
+                  rounded-sm px-3 py-3 text-left
+                  transition-all duration-200
+                  ${
+                    isActive
+                      ? 'bg-gradient-to-r from-crimson/[0.13] via-crimson/[0.045] to-transparent text-white'
+                      : 'text-white/42 hover:bg-white/[0.035] hover:text-white/85'
+                  }
                 `}
               >
-                {item.label}
-              </span>
-            </button>
+                {isActive && (
+                  <>
+                    <div className="absolute inset-y-2 left-0 w-[2px] bg-crimson shadow-[0_0_14px_rgba(220,20,60,0.8)]" />
+                    <div className="absolute bottom-0 left-0 h-px w-full bg-gradient-to-r from-crimson/35 via-transparent to-transparent" />
+                  </>
+                )}
+
+                <div
+                  className={`
+                    relative flex h-8 w-8 shrink-0 items-center justify-center rounded-sm
+                    transition-colors duration-200
+                    ${
+                      isActive
+                        ? 'bg-crimson/10 text-crimson'
+                        : 'text-white/35 group-hover:bg-cyan/[0.06] group-hover:text-cyan'
+                    }
+                  `}
+                >
+                  <Icon className="h-[18px] w-[18px]" />
+                </div>
+
+                {!collapsed && (
+                  <span className="relative truncate text-[11px] font-semibold tracking-[0.1em]">
+                    {item.label}
+                  </span>
+                )}
+
+                {isActive && !collapsed && (
+                  <span className="ml-auto text-[8px] tracking-[0.18em] text-crimson/80">
+                    ACTIVE
+                  </span>
+                )}
+              </button>
+            </div>
           );
         })}
       </div>
 
       {/* System status */}
-      <div className="p-4 border-t border-white/10">
+      <div className="relative shrink-0 border-t border-white/[0.09] px-4 py-4">
         <div
           className={`
-            flex items-center gap-2 text-xs
+            flex items-center gap-2.5
             ${collapsed ? 'justify-center' : ''}
           `}
         >
-          <div className="relative">
-            <div className="w-2 h-2 rounded-full bg-cyan animate-pulse" />
-            <div className="absolute inset-0 w-2 h-2 rounded-full bg-cyan/50 animate-ping" />
+          <div className="relative h-2 w-2">
+            <div className="absolute inset-0 rounded-full bg-cyan shadow-[0_0_10px_rgba(0,255,255,0.9)]" />
+            <div className="absolute inset-0 rounded-full bg-cyan/50 animate-ping" />
           </div>
-          <span
-            className={`
-              text-white/40 tracking-wider
-              transition-opacity duration-200
-              ${collapsed ? 'hidden' : ''}
-            `}
-          >
-            SYSTEM ACTIVE
-          </span>
+
+          {!collapsed && (
+            <div>
+              <p className="text-[9px] font-medium tracking-[0.16em] text-white/55">
+                SYSTEM ACTIVE
+              </p>
+              <p className="mt-0.5 text-[8px] tracking-[0.12em] text-white/20">
+                VERIFIED DATA LAYER
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Collapse toggle */}
+      {/* Collapse control */}
       <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-20 w-6 h-6 bg-graphite border border-white/20 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:border-white/40 transition-colors"
+        onClick={() => setCollapsed((value) => !value)}
+        className="
+          absolute -right-3 top-[92px] z-30 flex h-7 w-7 items-center justify-center
+          rounded-full border border-white/15 bg-[#111319] text-white/40
+          shadow-lg transition-all duration-200
+          hover:border-cyan/50 hover:text-cyan
+        "
+        title={collapsed ? 'Expand navigation' : 'Collapse navigation'}
       >
         {collapsed ? (
-          <ChevronRight className="w-3 h-3" />
+          <ChevronRight className="h-3.5 w-3.5" />
         ) : (
-          <ChevronLeft className="w-3 h-3" />
+          <ChevronLeft className="h-3.5 w-3.5" />
         )}
       </button>
     </nav>

@@ -1,5 +1,5 @@
-import { Clock, RefreshCw } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Clock, RefreshCw, Radio } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatTime } from '../utils/formatters';
 import { DATA_STATUS_LABELS } from '../config/dataConfig';
 import type { DataSourceState, AppError } from '../types/app';
@@ -34,132 +34,172 @@ export function TopStatusBar({
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    const interval = window.setInterval(() => {
       setTime(new Date());
     }, 1000);
-    return () => clearInterval(interval);
+
+    return () => window.clearInterval(interval);
   }, []);
 
-  const getStatusDisplay = () => {
+  const status = useMemo(() => {
     if (isLoading && sourceState !== 'cached') {
-      return (
-        <span className="text-xs tracking-wider text-cyan animate-pulse">
-          {loadingMessage || DATA_STATUS_LABELS.loading}
-        </span>
-      );
+      return {
+        label: loadingMessage || DATA_STATUS_LABELS.loading,
+        accent: 'text-cyan',
+        dot: 'bg-cyan',
+        detail: 'SYNC IN PROGRESS',
+      };
     }
 
     if (sourceState === 'rate_limited') {
-      return (
-        <div className="flex items-center gap-2">
-          <span className="text-xs tracking-wider text-amber">
-            {DATA_STATUS_LABELS.rateLimited}
-          </span>
-          {cooldownSeconds > 0 && (
-            <span className="text-xs text-amber/60">
-              COOLDOWN: {cooldownSeconds}s
-            </span>
-          )}
-        </div>
-      );
+      return {
+        label: 'RATE LIMIT PROTECTION',
+        accent: 'text-amber',
+        dot: 'bg-amber',
+        detail:
+          cooldownSeconds > 0
+            ? `COOLDOWN ${cooldownSeconds}s`
+            : 'REFRESH PAUSED',
+      };
     }
 
     if (sourceState === 'offline' || (error && !isFromCache)) {
-      return (
-        <span className="text-xs tracking-wider text-red-400">
-          {DATA_STATUS_LABELS.offline}
-        </span>
-      );
+      return {
+        label: DATA_STATUS_LABELS.offline,
+        accent: 'text-red-400',
+        dot: 'bg-red-400',
+        detail: 'SOURCE UNAVAILABLE',
+      };
     }
 
     if (isFromCache) {
-      return (
-        <div className="flex items-center gap-2">
-          <span className="text-xs tracking-wider text-green-400/80">
-            {DATA_STATUS_LABELS.cached}
-          </span>
-        </div>
-      );
+      return {
+        label: 'CACHED VERIFIED SNAPSHOT',
+        accent: 'text-green-400/85',
+        dot: 'bg-green-400',
+        detail: 'LOCAL DATA LAYER',
+      };
     }
 
-    return (
-      <span className="text-xs tracking-wider text-green-400">
-        {DATA_STATUS_LABELS.live}
-      </span>
-    );
-  };
+    return {
+      label: 'VERIFIED DATA',
+      accent: 'text-green-400',
+      dot: 'bg-green-400',
+      detail: 'AUTO-SYNC READY',
+    };
+  }, [
+    cooldownSeconds,
+    error,
+    isFromCache,
+    isLoading,
+    loadingMessage,
+    sourceState,
+  ]);
 
   const canRefresh = !isLoading && cooldownSeconds === 0;
 
   return (
-    <header className="flex h-14 min-h-14 shrink-0 items-center justify-between overflow-hidden px-4 md:px-6 border-b border-white/10 bg-graphite/80 backdrop-blur-sm">
-      {/* Season badge */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 px-3 py-1 bg-crimson/10 border border-crimson/30 rounded">
-          <span className="text-xs tracking-wider text-crimson font-bold">
+    <header className="relative flex h-[62px] min-h-[62px] shrink-0 items-center border-b border-white/[0.09] bg-[#090a0d]/90 px-4 backdrop-blur-xl md:px-6">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+
+      {/* Season identity */}
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="hidden h-5 w-px bg-white/10 md:block" />
+
+        <div className="flex items-center gap-2 rounded-sm border border-crimson/35 bg-crimson/[0.08] px-3 py-1.5">
+          <span className="text-[10px] font-bold tracking-[0.14em] text-crimson">
             2026 SEASON
           </span>
         </div>
 
-        {/* Rounds complete */}
-        <div className="hidden md:flex items-center gap-2 text-xs text-white/60">
-          <span className="tracking-wider">ROUNDS:</span>
-          <span className="text-cyan font-bold">{completedRounds}</span>
-          <span className="text-white/30">/</span>
-          <span className="text-white/40">{totalRounds}</span>
+        <div className="hidden items-center gap-2 md:flex">
+          <span className="text-[9px] tracking-[0.15em] text-white/35">
+            ROUNDS
+          </span>
+          <span className="text-xs font-bold text-cyan">{completedRounds}</span>
+          <span className="text-xs text-white/20">/</span>
+          <span className="text-xs text-white/45">{totalRounds}</span>
         </div>
       </div>
 
-      {/* Status indicators */}
-      <div className="flex min-w-0 items-center gap-4 overflow-hidden whitespace-nowrap md:gap-6">
-        {/* Data core status */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {getStatusDisplay()}
+      {/* Desktop intelligence status */}
+      <div className="ml-auto hidden min-w-0 items-center gap-5 lg:flex">
+        <div className="flex items-center gap-2.5">
+          <div className="relative h-2 w-2">
+            <div
+              className={`absolute inset-0 rounded-full ${status.dot} shadow-[0_0_10px_rgba(74,222,128,0.65)]`}
+            />
+            {!error && (
+              <div
+                className={`absolute inset-0 rounded-full ${status.dot}/40 animate-ping`}
+              />
+            )}
+          </div>
+
+          <div>
+            <p className={`text-[10px] font-medium tracking-[0.14em] ${status.accent}`}>
+              {status.label}
+            </p>
+            <p className="mt-0.5 text-[8px] tracking-[0.14em] text-white/25">
+              {status.detail}
+            </p>
+          </div>
         </div>
 
-        {/* Divider - hidden on mobile */}
-        <div className="hidden md:block w-[1px] h-4 bg-white/10" />
+        <div className="h-7 w-px bg-white/[0.08]" />
 
-        {/* Source */}
-        <div className="hidden md:flex items-center gap-2 flex-shrink-0">
-          <span className="text-xs tracking-wider text-white/40">
-            SOURCE:
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] tracking-[0.14em] text-white/30">
+            SOURCE
           </span>
-          <span className={`text-xs tracking-wider ${isFromCache ? 'text-green-400/80' : 'text-cyan'}`}>
+          <span
+            className={`text-[10px] font-medium tracking-[0.12em] ${
+              isFromCache ? 'text-green-400/85' : 'text-cyan'
+            }`}
+          >
             {dataSource}
           </span>
         </div>
 
-        {/* Divider - hidden on mobile */}
-        <div className="hidden md:block w-[1px] h-4 bg-white/10" />
+        <div className="h-7 w-px bg-white/[0.08]" />
 
-        {/* Last sync */}
-        <div className="hidden md:flex items-center gap-2 flex-shrink-0">
-          <span className="text-xs tracking-wider text-white/40">
-            {isFromCache ? 'CACHE TIME:' : 'LAST SYNC:'}
+        <div className="flex items-center gap-2">
+          <span className="text-[9px] tracking-[0.14em] text-white/30">
+            {isFromCache ? 'CACHE TIME' : 'LAST SYNC'}
           </span>
-          <span className="text-xs tracking-wider text-white/70 font-mono">
+          <span className="font-mono text-[10px] tracking-[0.08em] text-white/65">
             {formatTime(lastSync)}
           </span>
         </div>
+      </div>
 
-        {/* Refresh button */}
+      {/* Actions */}
+      <div className="ml-auto flex shrink-0 items-center gap-3 lg:ml-5">
         <button
-          onClick={() => onRefresh()}
+          onClick={onRefresh}
           disabled={!canRefresh}
-          className="flex items-center gap-1.5 px-3 py-1.5 border border-white/20 rounded text-xs tracking-wider text-white/60 hover:text-white hover:border-cyan/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-          title={cooldownSeconds > 0 ? `Cooldown: ${cooldownSeconds}s` : 'Refresh data'}
+          title={
+            cooldownSeconds > 0
+              ? `Cooldown: ${cooldownSeconds}s`
+              : 'Refresh verified data'
+          }
+          className="
+            group flex items-center gap-2 rounded-sm border border-white/15
+            bg-white/[0.02] px-3 py-2 text-[10px] tracking-[0.12em] text-white/60
+            transition-all duration-200
+            hover:border-cyan/45 hover:bg-cyan/[0.05] hover:text-cyan
+            disabled:cursor-not-allowed disabled:opacity-40
+          "
         >
           <RefreshCw
-            className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`}
+            className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : 'group-hover:rotate-90 transition-transform duration-300'}`}
           />
           <span className="hidden sm:inline">REFRESH</span>
         </button>
 
-        {/* Current time */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <Clock className="w-4 h-4 text-white/40" />
-          <span className="text-xs tracking-wider text-white/70 font-mono">
+        <div className="hidden items-center gap-2 xl:flex">
+          <Clock className="h-3.5 w-3.5 text-white/30" />
+          <span className="font-mono text-[10px] tracking-[0.1em] text-white/55">
             {time.toLocaleTimeString('en-GB', {
               hour: '2-digit',
               minute: '2-digit',
@@ -168,38 +208,26 @@ export function TopStatusBar({
           </span>
         </div>
 
-        {/* Connection indicator */}
-        <div className="relative flex-shrink-0">
+        <div className="relative flex h-6 w-6 items-center justify-center">
+          <Radio
+            className={`h-3.5 w-3.5 ${
+              error && !isFromCache
+                ? 'text-red-400'
+                : isLoading
+                  ? 'text-amber'
+                  : 'text-cyan'
+            }`}
+          />
           <div
-            className={`w-2 h-2 rounded-full ${
+            className={`absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ${
               error && !isFromCache
                 ? 'bg-red-400'
                 : isLoading
                   ? 'bg-amber'
                   : isFromCache
-                    ? 'bg-green-400/70'
+                    ? 'bg-green-400'
                     : 'bg-cyan'
-            }`}
-            style={{
-              boxShadow: error && !isFromCache
-                ? '0 0 8px rgba(248, 113, 113, 0.5)'
-                : isLoading
-                  ? '0 0 8px rgba(251, 191, 36, 0.5)'
-                  : isFromCache
-                    ? '0 0 8px rgba(74, 222, 128, 0.5)'
-                    : '0 0 8px rgba(0, 255, 255, 0.5)',
-            }}
-          />
-          <div
-            className={`absolute inset-0 w-2 h-2 rounded-full animate-ping ${
-              error && !isFromCache
-                ? 'bg-red-400/50'
-                : isLoading
-                  ? 'bg-amber/50'
-                  : isFromCache
-                    ? 'bg-green-400/30'
-                    : 'bg-cyan/50'
-            }`}
+            } shadow-[0_0_8px_rgba(0,255,255,0.75)]`}
           />
         </div>
       </div>
