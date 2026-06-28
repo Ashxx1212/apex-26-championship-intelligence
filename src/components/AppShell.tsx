@@ -36,21 +36,10 @@ export function AppShell({
   activeSection,
   onNavigate,
 }: AppShellProps) {
-  const [lockedNotification, setLockedNotification] = useState<string | null>(null);
-
-  const handleLockedClick = (label: string) => {
-    setLockedNotification(`${label} — INTELLIGENCE LAYER IN DEVELOPMENT`);
-    setTimeout(() => setLockedNotification(null), 3000);
-  };
-
   return (
     <div className="flex h-screen overflow-hidden bg-graphite">
       {/* Side navigation */}
-      <SideNavigation
-        activeSection={activeSection}
-        onNavigate={onNavigate}
-        onLockedClick={handleLockedClick}
-      />
+      <SideNavigation activeSection={activeSection} onNavigate={onNavigate} />
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -67,15 +56,6 @@ export function AppShell({
           sourceState={sourceState}
           isFromCache={isFromCache}
         />
-
-        {/* Locked module notification */}
-        {lockedNotification && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 px-6 py-3 bg-amber/10 border border-amber/30 rounded-sm backdrop-blur-sm animate-fade-in">
-            <p className="text-xs text-amber tracking-wider font-medium">
-              {lockedNotification}
-            </p>
-          </div>
-        )}
 
         <main className="flex-1 overflow-y-auto bg-graphite relative">
           {/* Telemetry grid texture overlay */}

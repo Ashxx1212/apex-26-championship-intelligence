@@ -76,7 +76,9 @@ export function ForecastEnginePanel({ data }: ForecastEnginePanelProps) {
     const teamDrivers = driversByTeam.get(leader.teamName);
     if (!teamDrivers || teamDrivers.length !== 2) return null;
 
-    const teammate = teamDrivers.find(d => d.driver_number !== leader.driverNumber);
+    const teammate = teamDrivers.find(
+  (d: { driver_number: number }) => d.driver_number !== leader.driverNumber
+);
     if (!teammate) return null;
 
     const driverPositions: number[] = [];

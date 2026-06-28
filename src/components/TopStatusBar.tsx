@@ -92,7 +92,7 @@ export function TopStatusBar({
   const canRefresh = !isLoading && cooldownSeconds === 0;
 
   return (
-    <header className="flex items-center justify-between h-14 px-4 md:px-6 border-b border-white/10 bg-graphite/80 backdrop-blur-sm">
+    <header className="flex h-14 min-h-14 shrink-0 items-center justify-between overflow-hidden px-4 md:px-6 border-b border-white/10 bg-graphite/80 backdrop-blur-sm">
       {/* Season badge */}
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 px-3 py-1 bg-crimson/10 border border-crimson/30 rounded">
@@ -111,7 +111,7 @@ export function TopStatusBar({
       </div>
 
       {/* Status indicators */}
-      <div className="flex items-center gap-4 md:gap-6 overflow-x-auto">
+      <div className="flex min-w-0 items-center gap-4 overflow-hidden whitespace-nowrap md:gap-6">
         {/* Data core status */}
         <div className="flex items-center gap-2 flex-shrink-0">
           {getStatusDisplay()}
