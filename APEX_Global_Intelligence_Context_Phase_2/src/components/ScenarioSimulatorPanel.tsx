@@ -130,14 +130,11 @@ export function ScenarioSimulatorPanel({
     selectedTeamName,
   ]);
 
-  const preferredContenderDriverNumber =
-    preferredContender?.driverNumber ?? null;
-
   useEffect(() => {
-    if (preferredContenderDriverNumber !== null) {
-      setLocalSelectedDriverNumber(preferredContenderDriverNumber);
+    if (preferredContender) {
+      setLocalSelectedDriverNumber(preferredContender.driverNumber);
     }
-  }, [preferredContenderDriverNumber]);
+  }, [preferredContender]);
 
   const selectedContender =
     scenarioSnapshot.contenders.find(
@@ -149,18 +146,6 @@ export function ScenarioSimulatorPanel({
 
   const isInsufficient =
     scenarioSnapshot.readiness === 'INSUFFICIENT_DATA';
-
-  const fallbackCandidates = data?.driverStandings.slice(0, 5) ?? [];
-
-  const selectedFallbackCandidate =
-    fallbackCandidates.find(
-      (driver) => driver.driverNumber === localSelectedDriverNumber
-    ) ??
-    fallbackCandidates.find(
-      (driver) => driver.driverNumber === selectedDriverNumber
-    ) ??
-    fallbackCandidates[0] ??
-    null;
 
   const contextLabel =
     contextDriver?.driverAcronym ||
@@ -319,110 +304,18 @@ export function ScenarioSimulatorPanel({
       </div>
 
       {isInsufficient ? (
-        <div className="space-y-5 px-4 py-8">
-          <div className="flex flex-col items-center justify-center text-center">
-            <AlertCircle className="mb-3 h-6 w-6 text-amber/70" />
+        <div className="flex flex-col items-center justify-center px-4 py-12">
+          <AlertCircle className="mb-3 h-6 w-6 text-amber/70" />
 
-            <p className="text-sm text-white/70">
-              Scenario Lab is awaiting enough verified race-result coverage.
-            </p>
+          <p className="text-center text-sm text-white/70">
+            Scenario Lab is awaiting enough verified race-result coverage.
+          </p>
 
-            <p className="mt-2 max-w-md text-[10px] leading-relaxed text-white/35">
-              The Title Path Index is paused until sufficient archive coverage
-              is available. You can still select a contender focus below; APEX
-              will carry that selection as the model becomes ready.
-            </p>
-          </div>
-
-          <div className="border border-white/10 bg-black/20 p-4">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-crimson" />
-                <h3 className="text-[11px] uppercase tracking-[0.18em] text-white/80">
-                  Title Contender Focus
-                </h3>
-              </div>
-
-              <span className="text-[9px] uppercase tracking-wider text-amber">
-                INDEX PAUSED · VERIFIED STANDINGS ONLY
-              </span>
-            </div>
-
-            {fallbackCandidates.length > 0 ? (
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-5">
-                {fallbackCandidates.map((driver) => {
-                  const isSelected =
-                    selectedFallbackCandidate?.driverNumber ===
-                    driver.driverNumber;
-
-                  return (
-                    <button
-                      key={driver.driverNumber}
-                      type="button"
-                      onClick={() =>
-                        setLocalSelectedDriverNumber(driver.driverNumber)
-                      }
-                      className={`border p-3 text-left transition-all duration-200 ${
-                        isSelected
-                          ? 'border-cyan/60 bg-cyan/5'
-                          : 'border-white/10 bg-graphite-light/30 hover:border-cyan/25'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">
-                            P{driver.position} · {driver.driverAcronym}
-                          </p>
-                          <p className="mt-2 truncate text-xs font-semibold text-white">
-                            {driver.driverName}
-                          </p>
-                          <p className="mt-1 truncate text-[10px] text-white/40">
-                            {driver.teamName}
-                          </p>
-                        </div>
-
-                        {isSelected && (
-                          <span className="border border-cyan/25 bg-cyan/[0.05] px-1.5 py-1 text-[8px] font-semibold tracking-[0.12em] text-cyan">
-                            FOCUS
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2">
-                        <span className="text-[10px] text-white/55">
-                          {driver.points} pts
-                        </span>
-                        <span className="text-[9px] uppercase tracking-[0.12em] text-white/30">
-                          Verified standing
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-center text-[10px] tracking-[0.12em] text-white/35">
-                VERIFIED DRIVER STANDINGS ARE AWAITING INGESTION
-              </p>
-            )}
-
-            {selectedFallbackCandidate && (
-              <div className="mt-4 border border-cyan/20 bg-cyan/[0.03] p-3">
-                <p className="text-[9px] uppercase tracking-[0.16em] text-cyan">
-                  Selected Contender Context
-                </p>
-                <p className="mt-1 text-sm font-semibold text-white">
-                  {selectedFallbackCandidate.driverName} ·{' '}
-                  {selectedFallbackCandidate.teamName}
-                </p>
-                <p className="mt-1 text-[10px] text-white/45">
-                  P{selectedFallbackCandidate.position} ·{' '}
-                  {selectedFallbackCandidate.points} points · awaiting enough
-                  archive coverage for a calculated Title Path Index.
-                </p>
-              </div>
-            )}
-          </div>
+          <p className="mt-2 max-w-md text-center text-[10px] leading-relaxed text-white/35">
+            The model activates only after sufficient championship and archived
+            race data is available. Missing data is never replaced with
+            fabricated values.
+          </p>
         </div>
       ) : (
         <div className="space-y-4 p-4">

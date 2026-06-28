@@ -57,16 +57,9 @@ function App() {
   const completedRoundCount = data?.completedRounds || 0;
   const totalGrandPrixCount = data?.totalGrandPrix || 0;
   const driverIntelSnapshot = selectDriverIntelSnapshot(
-  data,
-  selectedDriverNumber
-);
-  const selectedWeekendName =
-  data?.raceWeekends.find(
-    (weekend) => weekend.meetingKey === selectedMeetingKey
-  )?.meetingName ??
-  data?.currentMeeting?.meeting_name ??
-  data?.nextUpcomingMeeting?.meeting_name ??
-  null;
+    data,
+    selectedDriverNumber
+  );
 
   const handleDriverSelect = (driverNumber: number) => {
     const selectedDriver = data?.driverStandings.find(
@@ -84,7 +77,6 @@ function App() {
 
   const handleTeamSelect = (teamName: string) => {
     setSelectedTeamName(teamName);
-    setSelectedDriverNumber(null);
     setActiveSection('team');
   };
 
@@ -197,14 +189,11 @@ function App() {
             autoSyncLabel={autoSyncLabel}
             cooldownSeconds={cooldownSeconds}
             selectedDriverNumber={selectedDriverNumber}
-selectedTeamName={selectedTeamName}
-selectedMeetingKey={selectedMeetingKey}
-onDriverSelect={handleDriverSelect}
-onTeamSelect={handleTeamSelect}
-onMeetingSelect={(meetingKey) => {
-  setSelectedMeetingKey(meetingKey);
-  setActiveSection('circuit');
-}}
+            selectedTeamName={selectedTeamName}
+            selectedMeetingKey={selectedMeetingKey}
+            onDriverSelect={handleDriverSelect}
+            onTeamSelect={handleTeamSelect}
+            onMeetingSelect={handleMeetingSelect}
           />
 
           <DataIntegrityPanel
@@ -250,31 +239,13 @@ onMeetingSelect={(meetingKey) => {
               onDriverSelect={handleDriverSelect}
             />
 
-           <ForecastEnginePanel
-           data={data}
-           isLoading={isLoading}
-           onDriverSelect={handleDriverSelect}
-           onTeamSelect={handleTeamSelect}
-           />
+            <ForecastEnginePanel data={data} isLoading={isLoading} />
 
-            <RaceTimeline
-            data={data}
-            isLoading={isLoading}
-            selectedMeetingKey={selectedMeetingKey}
-            onMeetingSelect={(meetingKey) => {
-              setSelectedMeetingKey(meetingKey);
-              setActiveSection('circuit');
-              }}
-             />
+            <RaceTimeline data={data} isLoading={isLoading} />
           </div>
 
           <div className="space-y-4 xl:col-span-4">
-            <ConstructorsPanel
-            data={data}
-            isLoading={isLoading}
-            selectedTeamName={selectedTeamName}
-            onTeamSelect={handleTeamSelect}
-            />
+            <ConstructorsPanel data={data} isLoading={isLoading} />
 
             <MethodologyPanel />
 
@@ -303,54 +274,35 @@ onMeetingSelect={(meetingKey) => {
     }
 
     if (activeSection === 'driver-intel') {
-  return (
-    <DriverIntelPage
-      snapshot={driverIntelSnapshot}
-      availableDrivers={data?.driverStandings ?? []}
-      selectedWeekendName={selectedWeekendName}
-      onDriverSelect={handleDriverSelect}
-      onOpenTeam={handleTeamSelect}
-      onOpenScenarioLab={() => setActiveSection('scenario')}
-      onOpenRace={(round) => {
-  const matchingWeekend = data?.raceWeekends.find(
-    (weekend) => weekend.round === round
-  );
-
-  if (matchingWeekend) {
-    setSelectedMeetingKey(matchingWeekend.meetingKey);
-    setActiveSection('circuit');
-  }
-}}
-    />
-  );
-}
+      return <DriverIntelPage snapshot={driverIntelSnapshot} />;
+    }
 
     if (activeSection === 'team') {
-  return (
-    <TeamPerformancePage
-      data={data}
-      isLoading={isLoading}
-      selectedTeamName={selectedTeamName}
-      selectedDriverNumber={selectedDriverNumber}
-      onTeamSelect={setSelectedTeamName}
-      onDriverSelect={handleDriverSelect}
-    />
-  );
-}
+      return (
+        <TeamPerformancePage
+          data={data}
+          isLoading={isLoading}
+          selectedTeamName={selectedTeamName}
+          selectedDriverNumber={selectedDriverNumber}
+          onTeamSelect={setSelectedTeamName}
+          onDriverSelect={handleDriverSelect}
+        />
+      );
+    }
 
     if (activeSection === 'circuit') {
       return (
-  <CircuitMatrixPage
-    data={data}
-    isLoading={isLoading}
-    selectedMeetingKey={selectedMeetingKey}
-    onMeetingSelect={setSelectedMeetingKey}
-    onOpenScenarioLab={(meetingKey) => {
-      setSelectedMeetingKey(meetingKey);
-      setActiveSection('scenario');
-    }}
-  />
-);
+        <CircuitMatrixPage
+          data={data}
+          isLoading={isLoading}
+          selectedMeetingKey={selectedMeetingKey}
+          onMeetingSelect={setSelectedMeetingKey}
+          onOpenScenarioLab={(meetingKey) => {
+            setSelectedMeetingKey(meetingKey);
+            setActiveSection('scenario');
+          }}
+        />
+      );
     }
 
     if (activeSection === 'notes') {
@@ -358,17 +310,17 @@ onMeetingSelect={(meetingKey) => {
     }
 
     if (activeSection === 'scenario') {
-  return (
-    <div className="mx-auto max-w-[1800px]">
-      <ScenarioSimulatorPanel
-        data={data}
-        selectedDriverNumber={selectedDriverNumber}
-        selectedTeamName={selectedTeamName}
-        selectedMeetingKey={selectedMeetingKey}
-      />
-    </div>
-  );
-}
+      return (
+        <div className="mx-auto max-w-[1800px]">
+          <ScenarioSimulatorPanel
+            data={data}
+            selectedDriverNumber={selectedDriverNumber}
+            selectedTeamName={selectedTeamName}
+            selectedMeetingKey={selectedMeetingKey}
+          />
+        </div>
+      );
+    }
 
     return (
       <div className="mx-auto max-w-[1800px] space-y-4">

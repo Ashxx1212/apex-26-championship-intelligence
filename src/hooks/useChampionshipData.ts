@@ -9,10 +9,15 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { openF1Service, OpenF1Error } from '../services/openF1Service';
+import { isOpenF1PublicAccessRestriction } from '../services/openF1Client';
 import { cacheService } from '../services/cacheService';
 import { enrichDriverStandings, enrichTeamStandings } from '../utils/championshipMetrics';
 import { UI_CONFIG } from '../config/appConfig';
-import type { ChampionshipDataSnapshot, OpenF1Meeting, OpenF1Session, HistoricalRaceSessionDescriptor, RaceResult } from '../types/f1';
+import type {
+  ChampionshipDataSnapshot,
+  OpenF1Meeting,
+  OpenF1Session,
+} from '../types/f1';
 import type { DataLoadingPhase, AppError, DataSourceState } from '../types/app';
 
 interface UseChampionshipDataResult {
@@ -25,7 +30,13 @@ interface UseChampionshipDataResult {
   isFromCache: boolean;
   lastSyncTime: string | null;
   cooldownSeconds: number;
-  analyticsProgress: { current: number; total: number; mode: 'initial' | 'resume' } | null;
+  isPublicAccessRestricted: boolean;
+  sourceAccessRetrySeconds: number;
+  analyticsProgress: {
+    current: number;
+    total: number;
+    mode: 'initial' | 'resume';
+  } | null;
   loadingMessage: string;
   refreshData: (force?: boolean) => Promise<void>;
   loadAnalyticsArchive: () => Promise<void>;
@@ -40,6 +51,8 @@ const LOADING_MESSAGES = {
   error: '',
 };
 
+const PUBLIC_ACCESS_RETRY_SECONDS = 300;
+
 export function useChampionshipData(): UseChampionshipDataResult {
   const [data, setData] = useState<ChampionshipDataSnapshot | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,133 +63,260 @@ export function useChampionshipData(): UseChampionshipDataResult {
   const [isFromCache, setIsFromCache] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState('');
-  const [analyticsProgress, setAnalyticsProgress] = useState<{ current: number; total: number; mode: 'initial' | 'resume' } | null>(null);
+  const [analyticsProgress, setAnalyticsProgress] = useState<{
+    current: number;
+    total: number;
+    mode: 'initial' | 'resume';
+  } | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [isPublicAccessRestricted, setIsPublicAccessRestricted] =
+    useState(false);
+  const [sourceAccessRetrySeconds, setSourceAccessRetrySeconds] = useState(0);
 
   const hasLoadedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const analyticsAbortControllerRef = useRef<AbortController | null>(null);
   const lastForceRefreshRef = useRef(0);
 
-  /**
-   * Update cooldown timer
-   */
   useEffect(() => {
     if (cooldownSeconds <= 0) return;
 
-    const interval = setInterval(() => {
-      setCooldownSeconds((prev) => Math.max(0, prev - 1));
+    const interval = window.setInterval(() => {
+      setCooldownSeconds((previous) => Math.max(0, previous - 1));
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => window.clearInterval(interval);
   }, [cooldownSeconds]);
 
-  /**
-   * Enrich snapshot with calculated metrics
-   */
-  const enrichSnapshot = useCallback((snapshot: ChampionshipDataSnapshot): ChampionshipDataSnapshot => {
-    // Convert driversByTeam to format for metrics
-    const driversByTeamArray = new Map<string, { driver_number: number }[]>();
-    snapshot.driversByTeam.forEach((drivers, teamName) => {
-      driversByTeamArray.set(teamName, drivers.map((d) => ({ driver_number: d.driver_number })));
-    });
+  useEffect(() => {
+    if (sourceAccessRetrySeconds <= 0) return;
 
-    // Enrich driver standings
-    const enrichedDriverStandings = enrichDriverStandings(
-      snapshot.driverStandings,
-      snapshot.raceResults,
-      driversByTeamArray
-    );
+    const interval = window.setInterval(() => {
+      setSourceAccessRetrySeconds((previous) => Math.max(0, previous - 1));
+    }, 1000);
 
-    // Enrich team standings
-    const enrichedTeamStandings = enrichTeamStandings(
-      snapshot.teamStandings,
-      snapshot.completedRounds
-    );
+    return () => window.clearInterval(interval);
+  }, [sourceAccessRetrySeconds]);
 
-    return {
-      ...snapshot,
-      driverStandings: enrichedDriverStandings,
-      teamStandings: enrichedTeamStandings,
-    };
-  }, []);
+  const enrichSnapshot = useCallback(
+    (snapshot: ChampionshipDataSnapshot): ChampionshipDataSnapshot => {
+      const driversByTeamArray = new Map<
+        string,
+        { driver_number: number }[]
+      >();
 
-  /**
-   * Phase A: Fetch core data
-   */
-  const fetchCoreData = useCallback(async (forceRefresh: boolean = false) => {
-    // Prevent duplicate calls in React Strict Mode
-    const now = Date.now();
-    if (!forceRefresh && hasLoadedRef.current) return;
-    if (forceRefresh && now - lastForceRefreshRef.current < UI_CONFIG.rateLimitCooldownSeconds * 1000) {
-      // Don't allow force refresh more than once per 30 seconds
+      snapshot.driversByTeam.forEach((drivers, teamName) => {
+        driversByTeamArray.set(
+          teamName,
+          drivers.map((driver) => ({
+            driver_number: driver.driver_number,
+          }))
+        );
+      });
+
+      const enrichedDriverStandings = enrichDriverStandings(
+        snapshot.driverStandings,
+        snapshot.raceResults,
+        driversByTeamArray
+      );
+
+      const enrichedTeamStandings = enrichTeamStandings(
+        snapshot.teamStandings,
+        snapshot.completedRounds
+      );
+
+      return {
+        ...snapshot,
+        driverStandings: enrichedDriverStandings,
+        teamStandings: enrichedTeamStandings,
+      };
+    },
+    []
+  );
+
+  const shouldTreatAsPublicRestriction = useCallback(
+    (apiError: OpenF1Error, snapshot: ChampionshipDataSnapshot | null) => {
+      return (
+        isOpenF1PublicAccessRestriction(apiError) ||
+        (apiError.type === 'network_unavailable' &&
+          snapshot?.currentMeeting !== null &&
+          snapshot !== null)
+      );
+    },
+    []
+  );
+
+  const activateArchiveAccessPause = useCallback(
+    (apiError: OpenF1Error, snapshot: ChampionshipDataSnapshot | null) => {
+      const restricted = shouldTreatAsPublicRestriction(apiError, snapshot);
+
+      if (!restricted) return false;
+
+      setIsPublicAccessRestricted(true);
+      setSourceAccessRetrySeconds(PUBLIC_ACCESS_RETRY_SECONDS);
+
+      if (snapshot) {
+        setIsFromCache(true);
+        setSourceState('cached');
+      } else {
+        setSourceState('offline');
+      }
+
+      return true;
+    },
+    [shouldTreatAsPublicRestriction]
+  );
+
+  const fetchCoreData = useCallback(
+    async (forceRefresh: boolean = false) => {
+      const now = Date.now();
+
+      if (!forceRefresh && hasLoadedRef.current) return;
+
+      if (forceRefresh && isPublicAccessRestricted && sourceAccessRetrySeconds > 0) {
+        return;
+      }
+
+      if (
+        forceRefresh &&
+        now - lastForceRefreshRef.current <
+          UI_CONFIG.rateLimitCooldownSeconds * 1000
+      ) {
+        return;
+      }
+
+      if (forceRefresh) {
+        lastForceRefreshRef.current = now;
+      }
+
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = new AbortController();
+
+      setIsLoading(true);
+      setPhase('core');
+      setError(null);
+      setLoadingMessage(LOADING_MESSAGES.core);
+
+      try {
+        const result = await openF1Service.fetchCoreSnapshot(2026, {
+          forceRefresh,
+          onProgress: (message) => setLoadingMessage(message),
+        });
+
+        if (abortControllerRef.current?.signal.aborted) return;
+
+        if (result.data) {
+          const enriched = enrichSnapshot(result.data);
+
+          setData(enriched);
+          setLastSyncTime(enriched.lastUpdated);
+          setIsFromCache(result.fromCache);
+          hasLoadedRef.current = true;
+
+          if (!result.error) {
+            setError(null);
+            setIsPublicAccessRestricted(false);
+            setSourceAccessRetrySeconds(0);
+            setSourceState(result.fromCache ? 'cached' : 'live');
+            setPhase('complete');
+            return;
+          }
+
+          const appError: AppError = {
+            type: result.error.type,
+            message: result.error.message,
+            retryAfter: result.error.retryAfter,
+            canShowCachedData: true,
+          };
+
+          setError(appError);
+
+          const accessPaused = activateArchiveAccessPause(
+            result.error,
+            enriched
+          );
+
+          if (!accessPaused) {
+            if (result.error.type === 'rate_limited') {
+              setSourceState('rate_limited');
+              setCooldownSeconds(
+                result.error.retryAfter || UI_CONFIG.rateLimitCooldownSeconds
+              );
+            } else {
+              setSourceState(result.fromCache ? 'cached' : 'offline');
+            }
+          }
+
+          setPhase('complete');
+          return;
+        }
+
+        if (result.error) {
+          const appError: AppError = {
+            type: result.error.type,
+            message: result.error.message,
+            retryAfter: result.error.retryAfter,
+            canShowCachedData: Boolean(data),
+          };
+
+          setError(appError);
+
+          const accessPaused = activateArchiveAccessPause(result.error, data);
+
+          if (!accessPaused) {
+            if (result.error.type === 'rate_limited') {
+              setSourceState('rate_limited');
+              setCooldownSeconds(
+                result.error.retryAfter || UI_CONFIG.rateLimitCooldownSeconds
+              );
+            } else {
+              setSourceState(data ? 'cached' : 'offline');
+            }
+          }
+
+          setPhase('error');
+        }
+      } catch (caughtError) {
+        const apiError =
+          caughtError instanceof OpenF1Error
+            ? caughtError
+            : OpenF1Error.unknown(caughtError);
+
+        setError({
+          type: apiError.type,
+          message: apiError.message,
+          canShowCachedData: Boolean(data),
+        });
+
+        const accessPaused = activateArchiveAccessPause(apiError, data);
+
+        if (!accessPaused) {
+          setSourceState(data ? 'cached' : 'error');
+        }
+
+        setPhase('error');
+      } finally {
+        setIsLoading(false);
+        setLoadingMessage('');
+      }
+    },
+    [
+      activateArchiveAccessPause,
+      data,
+      enrichSnapshot,
+      isPublicAccessRestricted,
+      sourceAccessRetrySeconds,
+    ]
+  );
+
+  const loadAnalyticsArchive = useCallback(async () => {
+    if (
+      !data ||
+      isAnalyticsLoading ||
+      (isPublicAccessRestricted && sourceAccessRetrySeconds > 0)
+    ) {
       return;
     }
-
-    if (forceRefresh) {
-      lastForceRefreshRef.current = now;
-    }
-
-    // Cancel previous request
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = new AbortController();
-
-    setIsLoading(true);
-    setPhase('core');
-    setError(null);
-    setLoadingMessage(LOADING_MESSAGES.core);
-
-    try {
-      const result = await openF1Service.fetchCoreSnapshot(2026, {
-        forceRefresh,
-        onProgress: (msg) => setLoadingMessage(msg),
-      });
-
-      if (abortControllerRef.current?.signal.aborted) return;
-
-      if (result.data) {
-        const enriched = enrichSnapshot(result.data);
-        setData(enriched);
-        setLastSyncTime(enriched.lastUpdated);
-        setIsFromCache(result.fromCache);
-        setSourceState(result.fromCache ? 'cached' : 'live');
-        setPhase('complete');
-        hasLoadedRef.current = true;
-      } else if (result.error) {
-        const appError: AppError = {
-          type: result.error.type,
-          message: result.error.message,
-          retryAfter: result.error.retryAfter,
-          canShowCachedData: result.fromCache,
-        };
-        setError(appError);
-
-        if (result.error.type === 'rate_limited') {
-          setSourceState('rate_limited');
-          setCooldownSeconds(result.error.retryAfter || UI_CONFIG.rateLimitCooldownSeconds);
-        } else {
-          setSourceState('offline');
-        }
-      }
-    } catch (err) {
-      const apiError = err instanceof OpenF1Error ? err : OpenF1Error.unknown(err);
-      setError({
-        type: apiError.type,
-        message: apiError.message,
-        canShowCachedData: false,
-      });
-      setSourceState('error');
-    } finally {
-      setIsLoading(false);
-      setLoadingMessage('');
-    }
-  }, [enrichSnapshot]);
-
-  /**
-   * Phase B: Load analytics archive on demand
-   */
-  const loadAnalyticsArchive = useCallback(async () => {
-    if (!data || isAnalyticsLoading) return;
 
     analyticsAbortControllerRef.current?.abort();
     analyticsAbortControllerRef.current = new AbortController();
@@ -184,29 +324,60 @@ export function useChampionshipData(): UseChampionshipDataResult {
     try {
       const cachedMeetings = cacheService.getMeetings<OpenF1Meeting[]>();
       const cachedSessions = cacheService.getSessions<OpenF1Session[]>();
-      const meetings = cachedMeetings.status === 'valid' && cachedMeetings.data ? cachedMeetings.data : [];
-      const sessions = cachedSessions.status === 'valid' && cachedSessions.data ? cachedSessions.data : [];
 
-      const allCompletedDescriptors = openF1Service.buildHistoricalRaceSessionDescriptors(meetings, sessions);
-      if (allCompletedDescriptors.length === 0) {
-        return;
-      }
+      const meetings =
+        cachedMeetings.status === 'valid' && cachedMeetings.data
+          ? cachedMeetings.data
+          : [];
+
+      const sessions =
+        cachedSessions.status === 'valid' && cachedSessions.data
+          ? cachedSessions.data
+          : [];
+
+      const allCompletedDescriptors =
+        openF1Service.buildHistoricalRaceSessionDescriptors(
+          meetings,
+          sessions
+        );
+
+      if (allCompletedDescriptors.length === 0) return;
 
       const isResume = Boolean(data.analyticsArchive?.hasPendingWork);
-      const totalCompletedRaceSessions = data.analyticsArchive?.totalCompletedRaceSessions ?? allCompletedDescriptors.length;
+      const totalCompletedRaceSessions =
+        data.analyticsArchive?.totalCompletedRaceSessions ??
+        allCompletedDescriptors.length;
+
       const descriptorsToProcess = isResume
         ? allCompletedDescriptors.filter((descriptor) => {
-            const existingResult = (data.raceResults || []).find((result) => result.meetingKey === descriptor.meetingKey);
+            const existingResult = (data.raceResults || []).find(
+              (result) => result.meetingKey === descriptor.meetingKey
+            );
+
             const hasVerifiedWinner = Boolean(existingResult?.winner);
-            const cachedRace = cacheService.getRaceResult(descriptor.raceSessionKey);
+
+            const cachedRace = cacheService.getRaceResult(
+              descriptor.raceSessionKey
+            );
+
             const cachedRaceHasVerifiedWinner = Boolean(
               cachedRace.status === 'valid' &&
-              Array.isArray(cachedRace.data) &&
-              cachedRace.data.some((item) => item.position === 1)
+                Array.isArray(cachedRace.data) &&
+                cachedRace.data.some((item) => item.position === 1)
             );
-            const isPending = (data.analyticsArchive?.pendingDescriptors || []).some((item) => item.meetingKey === descriptor.meetingKey);
-            const isSkipped = (data.analyticsArchive?.skippedDescriptors || []).some((item) => item.meetingKey === descriptor.meetingKey);
-            return (isPending || isSkipped || !hasVerifiedWinner) && !cachedRaceHasVerifiedWinner;
+
+            const isPending = (
+              data.analyticsArchive?.pendingDescriptors || []
+            ).some((item) => item.meetingKey === descriptor.meetingKey);
+
+            const isSkipped = (
+              data.analyticsArchive?.skippedDescriptors || []
+            ).some((item) => item.meetingKey === descriptor.meetingKey);
+
+            return (
+              (isPending || isSkipped || !hasVerifiedWinner) &&
+              !cachedRaceHasVerifiedWinner
+            );
           })
         : allCompletedDescriptors;
 
@@ -215,92 +386,139 @@ export function useChampionshipData(): UseChampionshipDataResult {
         return;
       }
 
-      if (import.meta.env.DEV) {
-        console.info(
-          `[APEX Archive] mode=${isResume ? 'resume' : 'initial'} totalDescriptors=${allCompletedDescriptors.length} workList=${descriptorsToProcess.length} meetings=${descriptorsToProcess.map((descriptor) => descriptor.meetingName).join(', ')}`
-        );
-      }
-
       setIsAnalyticsLoading(true);
-      setAnalyticsProgress({ current: 0, total: descriptorsToProcess.length, mode: isResume ? 'resume' : 'initial' });
+      setAnalyticsProgress({
+        current: 0,
+        total: descriptorsToProcess.length,
+        mode: isResume ? 'resume' : 'initial',
+      });
 
       const result = await openF1Service.fetchAnalyticsArchive(
         descriptorsToProcess,
-        (current, total) => setAnalyticsProgress((prev) => prev ? { ...prev, current, total } : { current, total, mode: isResume ? 'resume' : 'initial' }),
+        (current, total) =>
+          setAnalyticsProgress((previous) =>
+            previous
+              ? { ...previous, current, total }
+              : {
+                  current,
+                  total,
+                  mode: isResume ? 'resume' : 'initial',
+                }
+          ),
         analyticsAbortControllerRef.current.signal,
         data.allDrivers,
-        { totalCompletedRaceSessions, isResume, existingArchiveStatus: data.analyticsArchive }
+        {
+          totalCompletedRaceSessions,
+          isResume,
+          existingArchiveStatus: data.analyticsArchive,
+        }
       );
 
-      if (result.results.length > 0) {
-        setData((prev) => {
-          if (!prev) return null;
+      setData((previous) => {
+        if (!previous) return null;
 
-          const mergedResults = [...prev.raceResults];
-          result.results.forEach((archiveResult) => {
-            const index = mergedResults.findIndex((existing) => existing.meetingKey === archiveResult.meetingKey);
-            if (index >= 0) {
-              mergedResults[index] = archiveResult;
-            } else {
-              mergedResults.push(archiveResult);
-            }
-          });
+        const mergedResults = [...previous.raceResults];
 
-          const sortedResults = mergedResults.sort((a, b) => a.round - b.round);
-          const enriched = enrichSnapshot({ ...prev, raceResults: sortedResults, analyticsArchive: result.archiveStatus, analyticsCoverage: { indexedRaceResults: result.archiveStatus.successfullyIndexedRaceSessions, indexedQualifyingSessions: result.archiveStatus.qualifyingSessionsIndexed, totalCompletedRaceSessions: result.archiveStatus.totalCompletedRaceSessions } });
-          const updatedRaceWeekends = enriched.raceWeekends.map((weekend) => {
-            const matchingResult = sortedResults.find((result) => result.meetingKey === weekend.meetingKey);
-            if (!matchingResult?.winner) {
-              return weekend;
-            }
-            return {
-              ...weekend,
-              raceWinner: matchingResult.winner,
-            };
-          });
+        result.results.forEach((archiveResult) => {
+          const index = mergedResults.findIndex(
+            (existing) => existing.meetingKey === archiveResult.meetingKey
+          );
 
-          return {
-            ...enriched,
-            raceWeekends: updatedRaceWeekends,
-            analyticsArchive: result.archiveStatus,
-            analyticsCoverage: {
-              indexedRaceResults: result.archiveStatus.successfullyIndexedRaceSessions,
-              indexedQualifyingSessions: result.archiveStatus.qualifyingSessionsIndexed,
-              totalCompletedRaceSessions: result.archiveStatus.totalCompletedRaceSessions,
-            },
-          };
+          if (index >= 0) {
+            mergedResults[index] = archiveResult;
+          } else {
+            mergedResults.push(archiveResult);
+          }
         });
-      }
+
+        const sortedResults = mergedResults.sort(
+          (left, right) => left.round - right.round
+        );
+
+        const enriched = enrichSnapshot({
+          ...previous,
+          raceResults: sortedResults,
+          analyticsArchive: result.archiveStatus,
+          analyticsCoverage: {
+            indexedRaceResults:
+              result.archiveStatus.successfullyIndexedRaceSessions,
+            indexedQualifyingSessions:
+              result.archiveStatus.qualifyingSessionsIndexed,
+            totalCompletedRaceSessions:
+              result.archiveStatus.totalCompletedRaceSessions,
+          },
+        });
+
+        const updatedRaceWeekends = enriched.raceWeekends.map((weekend) => {
+          const matchingResult = sortedResults.find(
+            (resultItem) => resultItem.meetingKey === weekend.meetingKey
+          );
+
+          return matchingResult?.winner
+            ? { ...weekend, raceWinner: matchingResult.winner }
+            : weekend;
+        });
+
+        return {
+          ...enriched,
+          raceWeekends: updatedRaceWeekends,
+          analyticsArchive: result.archiveStatus,
+          analyticsCoverage: {
+            indexedRaceResults:
+              result.archiveStatus.successfullyIndexedRaceSessions,
+            indexedQualifyingSessions:
+              result.archiveStatus.qualifyingSessionsIndexed,
+            totalCompletedRaceSessions:
+              result.archiveStatus.totalCompletedRaceSessions,
+          },
+        };
+      });
 
       if (result.errors.length > 0) {
         const firstError = result.errors[0];
-        if (firstError.type === 'rate_limited') {
-          setCooldownSeconds(firstError.retryAfter || UI_CONFIG.rateLimitCooldownSeconds);
-          setSourceState('rate_limited');
-        }
+
         setError({
           type: firstError.type,
           message: firstError.message,
           retryAfter: firstError.retryAfter,
           canShowCachedData: true,
         });
+
+        const accessPaused = activateArchiveAccessPause(firstError, data);
+
+        if (!accessPaused && firstError.type === 'rate_limited') {
+          setCooldownSeconds(
+            firstError.retryAfter || UI_CONFIG.rateLimitCooldownSeconds
+          );
+          setSourceState('rate_limited');
+        }
       }
-    } catch (err) {
-      const apiError = err instanceof OpenF1Error ? err : OpenF1Error.unknown(err);
+    } catch (caughtError) {
+      const apiError =
+        caughtError instanceof OpenF1Error
+          ? caughtError
+          : OpenF1Error.unknown(caughtError);
+
       setError({
         type: apiError.type,
         message: apiError.message,
         canShowCachedData: true,
       });
+
+      activateArchiveAccessPause(apiError, data);
     } finally {
       setIsAnalyticsLoading(false);
       setAnalyticsProgress(null);
     }
-  }, [data, isAnalyticsLoading, enrichSnapshot]);
+  }, [
+    activateArchiveAccessPause,
+    data,
+    enrichSnapshot,
+    isAnalyticsLoading,
+    isPublicAccessRestricted,
+    sourceAccessRetrySeconds,
+  ]);
 
-  /**
-   * Refresh data
-   */
   const refreshData = useCallback(
     async (force: boolean = false) => {
       await fetchCoreData(force);
@@ -308,28 +526,24 @@ export function useChampionshipData(): UseChampionshipDataResult {
     [fetchCoreData]
   );
 
-  /**
-   * Clear error
-   */
   const clearError = useCallback(() => {
     setError(null);
-    if (sourceState === 'error' || sourceState === 'rate_limited') {
+
+    if (
+      sourceState === 'error' ||
+      sourceState === 'rate_limited' ||
+      sourceState === 'offline'
+    ) {
       setSourceState(data ? (isFromCache ? 'cached' : 'live') : 'loading');
     }
-  }, [sourceState, data, isFromCache]);
+  }, [data, isFromCache, sourceState]);
 
-  /**
-   * Initial load - only runs once
-   */
   useEffect(() => {
     if (!hasLoadedRef.current) {
       fetchCoreData(false);
     }
   }, [fetchCoreData]);
 
-  /**
-   * Cleanup on unmount
-   */
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
@@ -347,6 +561,8 @@ export function useChampionshipData(): UseChampionshipDataResult {
     isFromCache,
     lastSyncTime,
     cooldownSeconds,
+    isPublicAccessRestricted,
+    sourceAccessRetrySeconds,
     analyticsProgress,
     loadingMessage,
     refreshData,

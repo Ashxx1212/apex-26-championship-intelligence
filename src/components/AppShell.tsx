@@ -16,6 +16,8 @@ interface AppShellProps {
   cooldownSeconds: number;
   sourceState: DataSourceState;
   isFromCache: boolean;
+  isPublicAccessRestricted: boolean;
+  sourceAccessRetrySeconds: number;
   activeSection: string;
   onNavigate: (section: string) => void;
 }
@@ -33,6 +35,8 @@ export function AppShell({
   cooldownSeconds,
   sourceState,
   isFromCache,
+  isPublicAccessRestricted,
+  sourceAccessRetrySeconds,
   activeSection,
   onNavigate,
 }: AppShellProps) {
@@ -78,6 +82,8 @@ export function AppShell({
           cooldownSeconds={cooldownSeconds}
           sourceState={sourceState}
           isFromCache={isFromCache}
+          isPublicAccessRestricted={isPublicAccessRestricted}
+          sourceAccessRetrySeconds={sourceAccessRetrySeconds}
         />
 
         <main className="relative flex-1 overflow-y-auto overflow-x-hidden">

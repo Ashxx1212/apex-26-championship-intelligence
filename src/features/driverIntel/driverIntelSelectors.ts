@@ -9,14 +9,8 @@ import {
 import type { ChampionshipDataSnapshot } from '../../types/f1';
 import type { DriverIntelSnapshot } from './driverIntelTypes';
 
-function formatOrdinal(position: number): string {
-  const ordinals = ['th', 'st', 'nd', 'rd'];
-  const remainder = position % 100;
-  if (remainder >= 11 && remainder <= 13) {
-    return `${position}th`;
-  }
-  const suffix = ordinals[remainder % 10] || 'th';
-  return `${position}${suffix}`;
+function formatOneDecimal(value: number): string {
+  return value.toFixed(1);
 }
 
 export function selectDriverIntelSnapshot(
@@ -27,25 +21,33 @@ export function selectDriverIntelSnapshot(
     return null;
   }
 
-  const standing = data.driverStandings.find((item) => item.driverNumber === selectedDriverNumber)
-    || data.driverStandings[0];
+  const standing =
+    data.driverStandings.find(
+      (item) => item.driverNumber === selectedDriverNumber
+    ) || data.driverStandings[0];
 
   if (!standing) {
     return null;
   }
 
-  const driver = data.allDrivers.get(standing.driverNumber);
   const teamDrivers = data.driversByTeam.get(standing.teamName) || [];
-  const teammateDriver = teamDrivers.find((item) => item.driver_number !== standing.driverNumber);
+  const teammateDriver = teamDrivers.find(
+    (item) => item.driver_number !== standing.driverNumber
+  );
+
   const teammateStanding = teammateDriver
-    ? data.driverStandings.find((item) => item.driverNumber === teammateDriver.driver_number)
+    ? data.driverStandings.find(
+        (item) => item.driverNumber === teammateDriver.driver_number
+      )
     : null;
 
   const raceHistory = data.raceResults
     .filter((result) => result.driverResults.has(standing.driverNumber))
+    .sort((left, right) => left.round - right.round)
     .slice(-6)
     .map((result) => {
       const driverResult = result.driverResults.get(standing.driverNumber);
+
       return {
         round: result.round,
         meetingName: result.meetingName,
@@ -57,39 +59,87 @@ export function selectDriverIntelSnapshot(
       };
     });
 
-  const averageRaceFinish = calculateAverageRaceFinish(data.raceResults, standing.driverNumber);
-  const averageQualifyingPosition = calculateAverageQualifyingPosition(data.raceResults, standing.driverNumber);
-  const raceCompletionRate = calculateRaceCompletionRate(data.raceResults, standing.driverNumber);
+  const latestVerifiedResult =
+    raceHistory.length > 0 ? raceHistory[raceHistory.length - 1] : null;
+
+  const averageRaceFinish = calculateAverageRaceFinish(
+    data.raceResults,
+    standing.driverNumber
+  );
+  const averageQualifyingPosition = calculateAverageQualifyingPosition(
+    data.raceResults,
+    standing.driverNumber
+  );
+  const raceCompletionRate = calculateRaceCompletionRate(
+    data.raceResults,
+    standing.driverNumber
+  );
   const dnfCount = calculateDNFCount(data.raceResults, standing.driverNumber);
-  const recentForm = calculateRecentFormScore(data.raceResults, standing.driverNumber);
+  const recentForm = calculateRecentFormScore(
+    data.raceResults,
+    standing.driverNumber
+  );
   const teammateGap = teammateStanding
-    ? calculateTeammateGap(data.raceResults, standing.driverNumber, teammateStanding.driverNumber)
+    ? calculateTeammateGap(
+        data.raceResults,
+        standing.driverNumber,
+        teammateStanding.driverNumber
+      )
     : null;
 
   const observations: string[] = [];
 
+  if (latestVerifiedResult) {
+    if (latestVerifiedResult.racePosition !== null) {
+      observations.push(
+        `Latest verified result: P${latestVerifiedResult.racePosition} at ${latestVerifiedResult.meetingName}.`
+      );
+    } else {
+      observations.push(
+        `Latest verified result at ${latestVerifiedResult.meetingName} has no classified finish value.`
+      );
+    }
+  }
+
   if (averageRaceFinish !== null) {
-    observations.push(`Average race finish ${averageRaceFinish}${formatOrdinal(Math.round(averageRaceFinish))}`);
+    observations.push(
+      `Average classified race finish: ${formatOneDecimal(averageRaceFinish)} across indexed rounds.`
+    );
   }
 
   if (averageQualifyingPosition !== null) {
-    observations.push(`Average qualifying position ${averageQualifyingPosition}${formatOrdinal(Math.round(averageQualifyingPosition))}`);
+    observations.push(
+      `Average qualifying position: ${formatOneDecimal(averageQualifyingPosition)} across indexed rounds.`
+    );
   }
 
   if (raceCompletionRate !== null) {
-    observations.push(`${raceCompletionRate}% of starts converted into a classified finish`);
+    observations.push(
+      `${raceCompletionRate}% of indexed starts converted into a classified finish.`
+    );
+  }
+
+  if (dnfCount !== null && dnfCount > 0) {
+    observations.push(`${dnfCount} DNF record${dnfCount === 1 ? '' : 's'} in the indexed archive.`);
   }
 
   if (teammateGap !== null) {
+    const magnitude = Math.abs(teammateGap);
+    const placeLabel = magnitude === 1 ? 'place' : 'places';
+
     observations.push(
       teammateGap < 0
-        ? `Averaged ${Math.abs(teammateGap)} place${Math.abs(teammateGap) === 1 ? '' : 's'} ahead of the teammate comparison`
-        : `Averaged ${teammateGap} place${teammateGap === 1 ? '' : 's'} behind the teammate comparison`
+        ? `Averaged ${magnitude} ${placeLabel} ahead of the teammate comparison.`
+        : teammateGap > 0
+          ? `Averaged ${magnitude} ${placeLabel} behind the teammate comparison.`
+          : 'Matched the teammate comparison on average classified finish.'
     );
   }
 
   if (data.analyticsArchive.hasPendingWork) {
-    observations.push(`Archive coverage remains partial at ${data.analyticsCoverage.indexedRaceResults}/${data.analyticsCoverage.totalCompletedRaceSessions} completed rounds`);
+    observations.push(
+      `Archive coverage remains partial at ${data.analyticsCoverage.indexedRaceResults}/${data.analyticsCoverage.totalCompletedRaceSessions} completed rounds.`
+    );
   }
 
   return {
@@ -119,9 +169,11 @@ export function selectDriverIntelSnapshot(
         }
       : null,
     raceHistory,
+    latestVerifiedResult,
     archiveCoverage: {
       indexedRaceResults: data.analyticsCoverage.indexedRaceResults,
-      totalCompletedRaceSessions: data.analyticsCoverage.totalCompletedRaceSessions,
+      totalCompletedRaceSessions:
+        data.analyticsCoverage.totalCompletedRaceSessions,
       hasPendingWork: data.analyticsArchive.hasPendingWork,
     },
     observations,

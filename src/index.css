@@ -13,7 +13,8 @@
 
 /* Base styles */
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen, Ubuntu, sans-serif;
   background-color: var(--color-graphite);
   color: #ffffff;
   -webkit-font-smoothing: antialiased;
@@ -25,23 +26,27 @@ body {
   .bg-graphite {
     background-color: var(--color-graphite);
   }
+
   .bg-graphite-light {
     background-color: var(--color-graphite-light);
   }
+
   .text-crimson {
     color: var(--color-crimson);
   }
+
   .text-cyan {
     color: var(--color-cyan);
   }
+
   .text-amber {
     color: var(--color-amber);
   }
+
   .border-crimson {
     border-color: var(--color-crimson);
   }
 
-  /* Gradient conic for radar effect */
   .bg-gradient-conic {
     background: conic-gradient(
       from 0deg,
@@ -53,18 +58,21 @@ body {
   }
 }
 
-/* Custom animations */
+/* Existing boot and interface animations */
 @keyframes speed-line {
   0% {
     left: -100%;
     opacity: 0;
   }
+
   30% {
     opacity: 1;
   }
+
   70% {
     opacity: 1;
   }
+
   100% {
     left: 100%;
     opacity: 0;
@@ -75,6 +83,7 @@ body {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -84,8 +93,21 @@ body {
   0% {
     transform: translateX(-100%);
   }
+
   100% {
     transform: translateX(100%);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
   }
 }
 
@@ -101,19 +123,151 @@ body {
   animation: scan 2s linear infinite;
 }
 
-@keyframes fade-in {
-  from {
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+/* APEX live-operations motion layer */
+@keyframes apex-live-scan {
+  0%,
+  10% {
+    transform: translateX(-130%) skewX(-18deg);
     opacity: 0;
-    transform: translate(-50%, -10px);
   }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
+
+  18% {
+    opacity: 0.5;
+  }
+
+  56% {
+    opacity: 0.18;
+  }
+
+  68%,
+  100% {
+    transform: translateX(560%) skewX(-18deg);
+    opacity: 0;
   }
 }
 
-.animate-fade-in {
-  animation: fade-in 0.3s ease-out forwards;
+@keyframes apex-data-core {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.22);
+  }
+}
+
+@keyframes apex-amber-breathe {
+  0%,
+  100% {
+    border-color: rgba(245, 158, 11, 0.35);
+    box-shadow: 0 0 0 rgba(245, 158, 11, 0);
+  }
+
+  50% {
+    border-color: rgba(245, 158, 11, 0.75);
+    box-shadow: 0 0 18px rgba(245, 158, 11, 0.12);
+  }
+}
+
+@keyframes apex-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes apex-quiet-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.apex-live-scan {
+  isolation: isolate;
+}
+
+.apex-live-scan::after {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 18%;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+  filter: blur(1px);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 212, 255, 0.01) 15%,
+    rgba(0, 212, 255, 0.16) 50%,
+    rgba(255, 255, 255, 0.05) 62%,
+    transparent 100%
+  );
+  animation: apex-live-scan 11s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.apex-data-core {
+  animation: apex-data-core 2.6s ease-in-out infinite;
+}
+
+.apex-active-weekend {
+  animation: apex-amber-breathe 2.8s ease-in-out infinite;
+}
+
+.apex-soft-reveal {
+  animation: apex-reveal 0.6s ease-out both;
+}
+
+.apex-quiet-pulse {
+  animation: apex-quiet-breathe 3.5s ease-in-out infinite;
+}
+
+.apex-stagger > * {
+  opacity: 0;
+  animation: apex-reveal 0.5s ease-out both;
+}
+
+.apex-stagger > *:nth-child(1) {
+  animation-delay: 0.04s;
+}
+
+.apex-stagger > *:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.apex-stagger > *:nth-child(3) {
+  animation-delay: 0.16s;
+}
+
+.apex-stagger > *:nth-child(4) {
+  animation-delay: 0.22s;
+}
+
+.apex-stagger > *:nth-child(5) {
+  animation-delay: 0.28s;
+}
+
+.apex-stagger > *:nth-child(6) {
+  animation-delay: 0.34s;
 }
 
 /* Scrollbar styling */
@@ -132,27 +286,57 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 212, 255, 0.32);
 }
 
-/* Selection styling */
+/* Selection and focus */
 ::selection {
   background-color: rgba(220, 20, 60, 0.3);
   color: #ffffff;
 }
 
-/* Focus styling */
 :focus-visible {
   outline: 2px solid var(--color-cyan);
   outline-offset: 2px;
 }
 
-/* Button hover glow */
-button:hover {
+/* Deliberate hover motion */
+button:not(:disabled):hover,
+.apex-lift:hover {
   box-shadow: 0 0 20px rgba(220, 20, 60, 0.1);
 }
 
-/* Card hover effects */
-.group:hover {
+.apex-lift {
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.apex-lift:hover {
   transform: translateY(-1px);
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .animate-speed-line,
+  .animate-radar-sweep,
+  .animate-scan,
+  .animate-fade-in,
+  .apex-live-scan::after,
+  .apex-data-core,
+  .apex-active-weekend,
+  .apex-soft-reveal,
+  .apex-quiet-pulse,
+  .apex-stagger > * {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
