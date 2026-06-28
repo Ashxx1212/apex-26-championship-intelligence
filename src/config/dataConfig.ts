@@ -32,7 +32,7 @@ export const OPENF1_CONFIG = {
  * Versioned localStorage cache keys and durations
  */
 export const CACHE_CONFIG = {
-  version: 1,
+  version: 2,
   /** Core snapshot cache lifetime in milliseconds (30 minutes) */
   coreSnapshotLifetime: 30 * 60 * 1000,
   /** Raw data cache lifetime in milliseconds (60 minutes) */

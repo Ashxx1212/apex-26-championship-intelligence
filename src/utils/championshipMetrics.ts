@@ -132,7 +132,7 @@ export function calculateRecentFormScore(
       form.push('W');
     } else if (result.racePosition <= 3) {
       form.push('P');
-    } else if (result.points > 0) {
+    } else if (result.racePosition !== null && result.racePosition <= 10) {
       form.push('D');
     } else {
       form.push('R');

@@ -11,7 +11,11 @@ export function DriverStandingsPanel({ data, isLoading }: DriverStandingsPanelPr
   const [expanded, setExpanded] = useState(false);
 
   const standings = data?.driverStandings || [];
+  const archiveStatus = data?.analyticsArchive;
   const displayStandings = expanded ? standings : standings.slice(0, 5);
+  const archiveSummary = archiveStatus
+    ? `${archiveStatus.successfullyIndexedRaceSessions}/${archiveStatus.totalCompletedRaceSessions} indexed rounds`
+    : null;
 
   const renderFormBadge = (form: ('W' | 'P' | 'D' | 'R')[], index: number) => {
     const colors = {
@@ -50,7 +54,7 @@ export function DriverStandingsPanel({ data, isLoading }: DriverStandingsPanelPr
             No driver standings available.
           </p>
           <p className="text-[10px] text-white/20 mt-1 tracking-wider uppercase">
-            Awaiting completed races
+            {archiveStatus?.hasPendingWork ? 'Archive coverage remains partial' : 'Awaiting completed races'}
           </p>
         </div>
       );
@@ -176,7 +180,7 @@ export function DriverStandingsPanel({ data, isLoading }: DriverStandingsPanelPr
           </h2>
         </div>
         <span className="text-[10px] tracking-wider text-white/30 uppercase">
-          {standings.length > 0 ? `${standings.length} Drivers` : '2026 Season'}
+          {archiveSummary || (standings.length > 0 ? `${standings.length} Drivers` : '2026 Season')}
         </span>
       </div>
 
