@@ -9,33 +9,30 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
-  Lock,
 } from 'lucide-react';
 
 interface NavItem {
   id: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  locked: boolean;
 }
 
 const navItems: NavItem[] = [
-  { id: 'command', label: 'COMMAND CENTRE', icon: LayoutDashboard, locked: false },
-  { id: 'championship', label: 'CHAMPIONSHIP', icon: Trophy, locked: false },
-  { id: 'driver-intel', label: 'DRIVER INTEL', icon: Users, locked: false },
-  { id: 'team', label: 'TEAM PERFORMANCE', icon: BarChart3, locked: true },
-  { id: 'circuit', label: 'CIRCUIT MATRIX', icon: Map, locked: true },
-  { id: 'scenario', label: 'SCENARIO LAB', icon: FlaskConical, locked: true },
-  { id: 'notes', label: 'MODEL NOTES', icon: FileText, locked: true },
+  { id: 'command', label: 'COMMAND CENTRE', icon: LayoutDashboard },
+  { id: 'championship', label: 'CHAMPIONSHIP', icon: Trophy },
+  { id: 'driver-intel', label: 'DRIVER INTEL', icon: Users },
+  { id: 'team', label: 'TEAM PERFORMANCE', icon: BarChart3 },
+  { id: 'circuit', label: 'CIRCUIT MATRIX', icon: Map },
+  { id: 'scenario', label: 'SCENARIO LAB', icon: FlaskConical },
+  { id: 'notes', label: 'MODEL NOTES', icon: FileText },
 ];
 
 interface SideNavigationProps {
   activeSection: string;
   onNavigate: (section: string) => void;
-  onLockedClick?: (label: string) => void;
 }
 
-export function SideNavigation({ activeSection, onNavigate, onLockedClick }: SideNavigationProps) {
+export function SideNavigation({ activeSection, onNavigate }: SideNavigationProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -63,31 +60,6 @@ export function SideNavigation({ activeSection, onNavigate, onLockedClick }: Sid
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
-
-          if (item.locked) {
-            return (
-              <button
-                key={item.id}
-                onClick={() => onLockedClick?.(item.label)}
-                className="group relative flex items-center w-full gap-3 px-4 py-3 text-white/30 cursor-not-allowed transition-all duration-200"
-                title="Module locked - in development"
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                <span
-                  className={`
-                    text-xs tracking-wider font-medium
-                    transition-opacity duration-200
-                    ${collapsed ? 'opacity-0 w-0' : 'opacity-100'}
-                  `}
-                >
-                  {item.label}
-                </span>
-                {!collapsed && (
-                  <Lock className="w-3 h-3 ml-auto text-white/20" />
-                )}
-              </button>
-            );
-          }
 
           return (
             <button
