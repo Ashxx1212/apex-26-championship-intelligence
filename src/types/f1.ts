@@ -44,19 +44,26 @@ export interface OpenF1Driver {
   meeting_key: number;
 }
 
+export type RaceStatus = 'finished' | 'dnf' | 'dns' | 'dsq';
+
 export interface OpenF1SessionResult {
-  position: number | null;
   driver_number: number;
-  session_key: number;
   meeting_key: number;
+  session_key: number;
+  position: number | null;
+  dnf: boolean | null;
+  dns: boolean | null;
+  dsq: boolean | null;
+  duration: string | null;
   gap_to_leader: string | null;
-  gap_to_ahead: string | null;
-  intervals: Array<{ lap: number; gap: string }>;
-  laps_completed: number | null;
-  total_laps: number | null;
-  result_type: 'final' | 'provisional' | 'grid' | string;
-  status: 'finished' | 'dnf' | 'dsq' | 'dns' | string;
-  points: number;
+  number_of_laps: number | null;
+}
+
+export function mapOpenF1RaceStatus(result: OpenF1SessionResult): RaceStatus {
+  if (result.dnf) return 'dnf';
+  if (result.dns) return 'dns';
+  if (result.dsq) return 'dsq';
+  return 'finished';
 }
 
 export interface OpenF1ChampionshipDriver {
@@ -107,6 +114,17 @@ export interface TeamStanding {
   performanceIndex: number | null;
 }
 
+export interface HistoricalRaceSessionDescriptor {
+  round: number;
+  meetingKey: number;
+  meetingName: string;
+  circuitName: string;
+  country: string;
+  raceSessionKey: number;
+  qualifyingSessionKey: number | null;
+  raceEndDate: string;
+}
+
 export interface RaceResult {
   round: number;
   meetingKey: number;
@@ -128,10 +146,38 @@ export interface RaceResult {
   } | null;
   driverResults: Map<number, {
     racePosition: number | null;
-    raceStatus: string;
+    raceStatus: RaceStatus;
     qualifyingPosition: number | null;
-    points: number;
   }>;
+}
+
+export type ArchiveReasonCode = 'empty_race_result' | 'missing_winner_position' | 'request_failed' | 'rate_limited' | 'qualifying_unavailable';
+
+export interface ArchiveDescriptorStatus {
+  round: number;
+  meetingKey: number;
+  meetingName: string;
+  raceSessionKey: number;
+  reason: ArchiveReasonCode;
+}
+
+export interface AnalyticsArchiveStatus {
+  totalCompletedRaceSessions: number;
+  successfullyIndexedRaceSessions: number;
+  raceSessionsWithVerifiedWinner: number;
+  qualifyingSessionsIndexed: number;
+  pendingDescriptors: ArchiveDescriptorStatus[];
+  skippedDescriptors: ArchiveDescriptorStatus[];
+  incompleteMeetingNames: string[];
+  errors: Array<{ type: string; message: string; retryAfter?: number }>;
+  isComplete: boolean;
+  hasPendingWork: boolean;
+}
+
+export interface AnalyticsCoverageSummary {
+  indexedRaceResults: number;
+  indexedQualifyingSessions: number;
+  totalCompletedRaceSessions: number;
 }
 
 export interface RaceWeekendSnapshot {
@@ -167,6 +213,8 @@ export interface ChampionshipDataSnapshot {
   teamStandings: TeamStanding[];
   raceWeekends: RaceWeekendSnapshot[];
   raceResults: RaceResult[];
+  analyticsArchive: AnalyticsArchiveStatus;
+  analyticsCoverage: AnalyticsCoverageSummary;
   allDrivers: Map<number, OpenF1Driver>;
   driversByTeam: Map<string, OpenF1Driver[]>;
   dataSource: 'openf1';

@@ -14,9 +14,7 @@ export function MethodologyPanel() {
       {/* Content */}
       <div className="p-4">
         <p className="text-sm text-white/50 leading-relaxed">
-          APEX ingests verified, completed 2026 session data from OpenF1. Its championship
-          forecast engine will activate only after enough completed-season performance data
-          has been modelled. Results are analytical estimates, not certainty or betting advice.
+          APEX ingests verified, completed 2026 session data from OpenF1. Analytics Archive indexes completed Race and standard Qualifying session results progressively from OpenF1. Sprint sessions are intentionally excluded from the initial reliability and form metrics. Results are analytical estimates, not certainty or betting advice.
         </p>
 
         {/* Key points */}

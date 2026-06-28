@@ -74,20 +74,24 @@ function RaceCard({ round, name, country, circuitType, status, raceWinner, isNex
         </div>
 
         {/* Winner info for completed races */}
-        {status === 'completed' && raceWinner && (
+        {status === 'completed' && (
           <div className="mt-2 pt-2 border-t border-white/10">
             <div className="text-[9px] text-white/40 mb-1 flex items-center gap-1">
               <Trophy className="w-2.5 h-2.5 text-amber" />
               <span>Winner</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-white">
-                {raceWinner.driverAcronym}
-              </span>
-              <span className="text-[10px] text-white/40">
-                {raceWinner.teamName}
-              </span>
-            </div>
+            {raceWinner ? (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-white">
+                  {raceWinner.driverAcronym}
+                </span>
+                <span className="text-[10px] text-white/40">
+                  {raceWinner.teamName}
+                </span>
+              </div>
+            ) : (
+              <div className="text-[10px] text-white/40">RESULT VERIFICATION PENDING</div>
+            )}
           </div>
         )}
       </div>

@@ -11,6 +11,8 @@ import { CACHE_CONFIG } from '../config/dataConfig';
 // Cache Types
 // ============================================================================
 
+const MAP_MARKER = '__apex26_map__';
+
 interface CacheEnvelope<T> {
   /** Cache schema version */
   version: number;
@@ -54,6 +56,26 @@ function isStorageAvailable(): boolean {
 /**
  * Parse and validate a cache entry
  */
+function mapReplacer(_key: string, value: unknown): unknown {
+  if (value instanceof Map) {
+    return { [MAP_MARKER]: Array.from(value.entries()) };
+  }
+  return value;
+}
+
+function mapReviver(_key: string, value: unknown): unknown {
+  if (
+    value &&
+    typeof value === 'object' &&
+    value !== null &&
+    MAP_MARKER in value &&
+    Array.isArray((value as Record<string, unknown>)[MAP_MARKER])
+  ) {
+    return new Map((value as Record<string, unknown>)[MAP_MARKER] as Array<[unknown, unknown]>);
+  }
+  return value;
+}
+
 function parseCacheEntry<T>(raw: string | null): CacheResult<T> {
   if (!raw) {
     return {
@@ -65,7 +87,7 @@ function parseCacheEntry<T>(raw: string | null): CacheResult<T> {
   }
 
   try {
-    const envelope = JSON.parse(raw) as CacheEnvelope<T>;
+    const envelope = JSON.parse(raw, mapReviver) as CacheEnvelope<T>;
 
     // Check version
     if (envelope.version !== CACHE_CONFIG.version) {
@@ -168,7 +190,7 @@ export const cacheService = {
 
     try {
       const envelope = createEnvelope(payload, lifetimeMs, source);
-      localStorage.setItem(key, JSON.stringify(envelope));
+      localStorage.setItem(key, JSON.stringify(envelope, mapReplacer));
       return true;
     } catch {
       // Storage might be full

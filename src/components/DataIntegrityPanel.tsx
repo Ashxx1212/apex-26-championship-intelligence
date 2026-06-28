@@ -11,7 +11,7 @@ interface DataIntegrityPanelProps {
   onRefresh: () => void;
   onLoadAnalytics: () => void;
   isAnalyticsLoading: boolean;
-  analyticsProgress: { current: number; total: number } | null;
+  analyticsProgress: { current: number; total: number; mode: 'initial' | 'resume' } | null;
   cooldownSeconds: number;
 }
 
@@ -27,7 +27,16 @@ export function DataIntegrityPanel({
   cooldownSeconds,
 }: DataIntegrityPanelProps) {
   const latestMeeting = data?.latestCompletedMeeting;
+  const archiveStatus = data?.analyticsArchive;
   const canForceRefresh = cooldownSeconds === 0 && !isAnalyticsLoading;
+  const archiveSummary = archiveStatus
+    ? `${archiveStatus.successfullyIndexedRaceSessions}/${archiveStatus.totalCompletedRaceSessions} indexed rounds • ${archiveStatus.qualifyingSessionsIndexed} qualifying sessions indexed`
+    : 'Archive status pending';
+  const pendingRoundCount = Math.max(
+    0,
+    (archiveStatus?.pendingDescriptors.length || 0) + (archiveStatus?.skippedDescriptors.length || 0)
+  );
+  const pendingMeetingNames = archiveStatus?.incompleteMeetingNames.slice(0, 3).join(', ') || '';
 
   return (
     <div className="bg-graphite-light/30 border border-white/10 rounded-sm overflow-hidden">
@@ -123,20 +132,28 @@ export function DataIntegrityPanel({
           {/* Load analytics archive button */}
           <button
             onClick={onLoadAnalytics}
-            disabled={isAnalyticsLoading || !data || data.completedRounds === 0}
+            disabled={isAnalyticsLoading || !data || data.completedRounds === 0 || archiveStatus?.isComplete}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-cyan/30 rounded text-xs tracking-wider text-cyan hover:bg-cyan/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isAnalyticsLoading ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 <span>
-                  ANALYTICS ARCHIVE // INDEXING ROUND {analyticsProgress?.current || 0} OF {analyticsProgress?.total || 0}
+                  {analyticsProgress?.mode === 'resume'
+                    ? `ANALYTICS ARCHIVE // RETRYING MISSING ROUND ${analyticsProgress.current || 0} OF ${analyticsProgress.total || 0}`
+                    : `ANALYTICS ARCHIVE // INDEXING ROUND ${analyticsProgress?.current || 0} OF ${analyticsProgress?.total || 0}`}
                 </span>
               </>
             ) : (
               <>
                 <Archive className="w-3.5 h-3.5" />
-                <span>LOAD ANALYTICS ARCHIVE</span>
+                <span>
+                  {archiveStatus?.isComplete
+                    ? 'ARCHIVE VERIFIED'
+                    : archiveStatus?.hasPendingWork
+                      ? 'RESUME MISSING ROUNDS'
+                      : 'LOAD ANALYTICS ARCHIVE'}
+                </span>
               </>
             )}
           </button>
@@ -157,13 +174,38 @@ export function DataIntegrityPanel({
           </button>
         </div>
 
+        {archiveStatus && (
+          <div className="mt-2 rounded border border-white/10 bg-white/[0.02] p-2">
+            <div className={`text-[10px] uppercase tracking-[0.2em] ${archiveStatus.isComplete ? 'text-green-400/70' : 'text-amber/70'}`}>
+              {archiveStatus.isComplete ? 'Archive verified' : 'Archive partial'}
+            </div>
+            <div className="mt-1 text-[11px] text-white/60">
+              {archiveStatus.isComplete
+                ? `ANALYTICS ARCHIVE VERIFIED // ${archiveStatus.totalCompletedRaceSessions} OF ${archiveStatus.totalCompletedRaceSessions} ROUNDS INDEXED`
+                : `ARCHIVE PARTIAL // ${archiveStatus.successfullyIndexedRaceSessions} OF ${archiveStatus.totalCompletedRaceSessions} ROUNDS INDEXED`}
+            </div>
+            {archiveStatus.hasPendingWork && (
+              <>
+                <div className="mt-1 text-[10px] text-white/40">
+                  {pendingRoundCount} rounds require verified-result retry.
+                </div>
+                {pendingMeetingNames && (
+                  <div className="mt-1 text-[9px] text-white/35">
+                    Pending meetings: {pendingMeetingNames}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         {/* Integrity statement */}
         <div className="mt-4 pt-3 border-t border-white/10">
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-3.5 h-3.5 text-amber/70 mt-0.5 flex-shrink-0" />
             <p className="text-[11px] text-white/50 leading-relaxed">
               No race result, standing, or prediction is fabricated when verified source data is unavailable.
-              All displayed data originates from the OpenF1 API.
+              Partially indexed archive rounds remain explicitly marked pending.
             </p>
           </div>
         </div>

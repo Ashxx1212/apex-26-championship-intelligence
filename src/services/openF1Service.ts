@@ -11,7 +11,7 @@
 
 import { openF1Client, OpenF1Error } from './openF1Client';
 import { cacheService } from './cacheService';
-import { OPENF1_CONFIG } from '../config/dataConfig';
+import { CACHE_CONFIG, OPENF1_CONFIG } from '../config/dataConfig';
 import type {
   OpenF1Meeting,
   OpenF1Session,
@@ -24,7 +24,12 @@ import type {
   RaceWeekendSnapshot,
   RaceResult,
   ChampionshipDataSnapshot,
+  HistoricalRaceSessionDescriptor,
+  AnalyticsArchiveStatus,
+  ArchiveDescriptorStatus,
+  AnalyticsCoverageSummary,
 } from '../types/f1';
+import { mapOpenF1RaceStatus } from '../types/f1';
 
 // ============================================================================
 // Phase A: Core Snapshot
@@ -85,6 +90,168 @@ function isMeetingUpcoming(meeting: OpenF1Meeting): boolean {
   return now < start;
 }
 
+export function buildHistoricalRaceSessionDescriptors(
+  meetings: OpenF1Meeting[],
+  sessions: OpenF1Session[]
+): HistoricalRaceSessionDescriptor[] {
+  const championshipMeetings = filterChampionshipMeetings(meetings);
+  const completedRaceSessions = sessions
+    .filter((session) => session.session_name === 'Race' && isCompletedRaceSession(session))
+    .sort((a, b) => new Date(a.date_end).getTime() - new Date(b.date_end).getTime());
+
+  const descriptors: HistoricalRaceSessionDescriptor[] = completedRaceSessions.map((raceSession) => {
+    const meeting = championshipMeetings.find((item) => item.meeting_key === raceSession.meeting_key);
+    const qualifyingSession = sessions.find(
+      (session) =>
+        session.meeting_key === raceSession.meeting_key &&
+        session.session_name === 'Qualifying'
+    );
+
+    return {
+      round: 0,
+      meetingKey: raceSession.meeting_key,
+      meetingName: meeting?.meeting_name || raceSession.location,
+      circuitName: meeting?.circuit_short_name || raceSession.location,
+      country: meeting?.country_name || raceSession.country_name,
+      raceSessionKey: raceSession.session_key,
+      qualifyingSessionKey: qualifyingSession?.session_key || null,
+      raceEndDate: raceSession.date_end,
+    };
+  });
+
+  return descriptors
+    .sort((a, b) => new Date(a.raceEndDate).getTime() - new Date(b.raceEndDate).getTime())
+    .map((descriptor, index) => ({ ...descriptor, round: index + 1 }));
+}
+
+function buildArchiveStatus(
+  totalCompletedRaceSessions: number,
+  successfullyIndexedRaceSessions: number,
+  raceSessionsWithVerifiedWinner: number,
+  qualifyingSessionsIndexed: number,
+  pendingDescriptors: ArchiveDescriptorStatus[],
+  skippedDescriptors: ArchiveDescriptorStatus[],
+  errors: OpenF1Error[]
+): AnalyticsArchiveStatus {
+  const incompleteMeetingNames = Array.from(
+    new Set([
+      ...pendingDescriptors.map((descriptor) => descriptor.meetingName),
+      ...skippedDescriptors.map((descriptor) => descriptor.meetingName),
+    ].filter(Boolean))
+  );
+
+  return {
+    totalCompletedRaceSessions,
+    successfullyIndexedRaceSessions,
+    raceSessionsWithVerifiedWinner,
+    qualifyingSessionsIndexed,
+    pendingDescriptors,
+    skippedDescriptors,
+    incompleteMeetingNames,
+    errors: errors.map((error) => ({ type: error.type, message: error.message, retryAfter: error.retryAfter })),
+    isComplete: totalCompletedRaceSessions > 0 && raceSessionsWithVerifiedWinner === totalCompletedRaceSessions,
+    hasPendingWork: pendingDescriptors.length > 0 || skippedDescriptors.length > 0,
+  };
+}
+
+function rebuildArchiveResultsFromCache(
+  descriptors: HistoricalRaceSessionDescriptor[],
+  driverLookup: Map<number, OpenF1Driver>
+): { results: RaceResult[]; archiveStatus: AnalyticsArchiveStatus; coverage: AnalyticsCoverageSummary } {
+  const results: RaceResult[] = [];
+  const pendingDescriptors: ArchiveDescriptorStatus[] = [];
+  const skippedDescriptors: ArchiveDescriptorStatus[] = [];
+  let qualifyingSessionsIndexed = 0;
+
+  descriptors.forEach((descriptor) => {
+    const cachedRace = cacheService.getRaceResult<OpenF1SessionResult[]>(descriptor.raceSessionKey);
+    if (cachedRace.status !== 'valid' || !cachedRace.data || cachedRace.data.length === 0) {
+      skippedDescriptors.push({
+        round: descriptor.round,
+        meetingKey: descriptor.meetingKey,
+        meetingName: descriptor.meetingName,
+        raceSessionKey: descriptor.raceSessionKey,
+        reason: 'empty_race_result',
+      });
+      return;
+    }
+
+    let qualifyingResults: OpenF1SessionResult[] | null = null;
+    if (descriptor.qualifyingSessionKey) {
+      const cachedQualifying = cacheService.getQualifyingResult<OpenF1SessionResult[]>(descriptor.qualifyingSessionKey);
+      if (cachedQualifying.status === 'valid' && cachedQualifying.data && cachedQualifying.data.length > 0) {
+        qualifyingResults = cachedQualifying.data;
+        qualifyingSessionsIndexed += 1;
+      }
+    }
+
+    const raceResults = cachedRace.data;
+    const driverResultsMap = new Map<number, { racePosition: number | null; raceStatus: 'finished' | 'dnf' | 'dns' | 'dsq'; qualifyingPosition: number | null }>();
+
+    raceResults.forEach((result) => {
+      const raceStatus = mapOpenF1RaceStatus(result);
+      const qualifyingPosition = qualifyingResults?.find((q) => q.driver_number === result.driver_number)?.position ?? null;
+      driverResultsMap.set(result.driver_number, {
+        racePosition: result.position,
+        raceStatus,
+        qualifyingPosition,
+      });
+    });
+
+    const winner = raceResults.find((result) => result.position === 1);
+    const winnerDriver = winner ? driverLookup.get(winner.driver_number) ?? null : null;
+
+    if (!winner) {
+      pendingDescriptors.push({
+        round: descriptor.round,
+        meetingKey: descriptor.meetingKey,
+        meetingName: descriptor.meetingName,
+        raceSessionKey: descriptor.raceSessionKey,
+        reason: 'missing_winner_position',
+      });
+    }
+
+    results.push({
+      round: descriptor.round,
+      meetingKey: descriptor.meetingKey,
+      meetingName: descriptor.meetingName,
+      circuitName: descriptor.circuitName,
+      country: descriptor.country,
+      date: descriptor.raceEndDate,
+      winner: winnerDriver
+        ? {
+            driverNumber: winnerDriver.driver_number,
+            driverName: winnerDriver.full_name,
+            driverAcronym: winnerDriver.name_acronym,
+            teamName: winnerDriver.team_name,
+          }
+        : null,
+      polePosition: null,
+      driverResults: driverResultsMap,
+    });
+  });
+
+  const archiveStatus = buildArchiveStatus(
+    descriptors.length,
+    results.length,
+    results.filter((result) => result.winner !== null).length,
+    qualifyingSessionsIndexed,
+    pendingDescriptors,
+    skippedDescriptors,
+    []
+  );
+
+  return {
+    results,
+    archiveStatus,
+    coverage: {
+      indexedRaceResults: results.length,
+      indexedQualifyingSessions: qualifyingSessionsIndexed,
+      totalCompletedRaceSessions: descriptors.length,
+    },
+  };
+}
+
 /**
  * Fetch Phase A core data sequentially
  */
@@ -93,10 +260,24 @@ async function fetchCoreData(
   onProgress?: (message: string) => void
 ): Promise<RawCoreData> {
   onProgress?.('Reading 2026 meetings...');
-  const meetings = (await openF1Client.getMeetings(year)) as OpenF1Meeting[];
+  const cachedMeetings = cacheService.getMeetings<OpenF1Meeting[]>();
+  const meetings = cachedMeetings.status === 'valid' && cachedMeetings.data
+    ? cachedMeetings.data
+    : ((await openF1Client.getMeetings(year)) as OpenF1Meeting[]);
+
+  if (meetings.length > 0 && cachedMeetings.status !== 'valid') {
+    cacheService.setMeetings(meetings);
+  }
 
   onProgress?.('Indexing 2026 sessions...');
-  const sessions = (await openF1Client.getSessions(year)) as OpenF1Session[];
+  const cachedSessions = cacheService.getSessions<OpenF1Session[]>();
+  const sessions = cachedSessions.status === 'valid' && cachedSessions.data
+    ? cachedSessions.data
+    : ((await openF1Client.getSessions(year)) as OpenF1Session[]);
+
+  if (sessions.length > 0 && cachedSessions.status !== 'valid') {
+    cacheService.setSessions(sessions);
+  }
 
   // Filter to championship meetings only
   const championshipMeetings = filterChampionshipMeetings(meetings);
@@ -232,12 +413,23 @@ function transformCoreData(raw: RawCoreData): ChampionshipDataSnapshot {
     }
   });
 
+  const latestCompletedMeeting = latestRaceSession
+    ? meetings.find((meeting) => meeting.meeting_key === latestRaceSession.meeting_key) ?? null
+    : null;
+
+  const currentMeeting = sortedMeetings.find(isMeetingActive) || null;
+
+  const upcomingMeetings = sortedMeetings
+    .filter(isMeetingUpcoming)
+    .sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
+  const nextUpcomingMeeting = upcomingMeetings[0] || null;
+
   // Build race weekend snapshots
   const raceWeekends: RaceWeekendSnapshot[] = sortedMeetings.map((meeting) => {
     const meetingSessions = sessions.filter(
-      (s) => s.meeting_key === meeting.meeting_key
+      (session) => session.meeting_key === meeting.meeting_key
     );
-    const raceSession = meetingSessions.find((s) => s.session_name === 'Race');
+    const raceSession = meetingSessions.find((session) => session.session_name === 'Race');
     const round = meetingRounds.get(meeting.meeting_key) || 0;
 
     let status: 'completed' | 'active' | 'upcoming' = 'upcoming';
@@ -247,16 +439,22 @@ function transformCoreData(raw: RawCoreData): ChampionshipDataSnapshot {
       status = 'active';
     } else if (raceSession && isCompletedRaceSession(raceSession)) {
       status = 'completed';
-      // Find winner from results
-      const winner = latestRaceResults.find((r) => r.position === 1);
-      const winnerDriver = winner ? allDrivers.get(winner.driver_number) : null;
-      if (winnerDriver) {
-        raceWinner = {
-          driverNumber: winnerDriver.driver_number,
-          driverName: winnerDriver.full_name,
-          driverAcronym: winnerDriver.name_acronym,
-          teamName: winnerDriver.team_name,
-        };
+      const isLatestCompletedWeekend = latestCompletedMeeting?.meeting_key === meeting.meeting_key;
+      const hasVerifiedLatestWinner =
+        isLatestCompletedWeekend &&
+        latestRaceResults.some((result) => result.position === 1);
+
+      if (hasVerifiedLatestWinner) {
+        const winner = latestRaceResults.find((result) => result.position === 1);
+        const winnerDriver = winner ? allDrivers.get(winner.driver_number) : null;
+        if (winnerDriver) {
+          raceWinner = {
+            driverNumber: winnerDriver.driver_number,
+            driverName: winnerDriver.full_name,
+            driverAcronym: winnerDriver.name_acronym,
+            teamName: winnerDriver.team_name,
+          };
+        }
       }
     }
 
@@ -277,18 +475,6 @@ function transformCoreData(raw: RawCoreData): ChampionshipDataSnapshot {
     };
   });
 
-  // Find latest completed, current, and next meeting
-  const latestCompletedMeeting = latestRaceSession
-    ? meetings.find((m) => m.meeting_key === latestRaceSession.meeting_key) || null
-    : null;
-
-  const currentMeeting = sortedMeetings.find(isMeetingActive) || null;
-
-  const upcomingMeetings = sortedMeetings
-    .filter(isMeetingUpcoming)
-    .sort((a, b) => new Date(a.date_start).getTime() - new Date(b.date_start).getTime());
-  const nextUpcomingMeeting = upcomingMeetings[0] || null;
-
   // Count completed rounds
   const completedRounds = raceWeekends.filter((rw) => rw.status === 'completed').length;
 
@@ -297,15 +483,14 @@ function transformCoreData(raw: RawCoreData): ChampionshipDataSnapshot {
   if (latestRaceSession && latestCompletedMeeting) {
     const driverResultsMap = new Map<
       number,
-      { racePosition: number | null; raceStatus: string; qualifyingPosition: number | null; points: number }
+      { racePosition: number | null; raceStatus: 'finished' | 'dnf' | 'dns' | 'dsq'; qualifyingPosition: number | null }
     >();
 
     latestRaceResults.forEach((r) => {
       driverResultsMap.set(r.driver_number, {
         racePosition: r.position,
-        raceStatus: r.status || 'finished',
+        raceStatus: mapOpenF1RaceStatus(r),
         qualifyingPosition: null,
-        points: r.points || 0,
       });
     });
 
@@ -332,6 +517,24 @@ function transformCoreData(raw: RawCoreData): ChampionshipDataSnapshot {
     });
   }
 
+  const archiveDescriptors = buildHistoricalRaceSessionDescriptors(meetings, sessions);
+
+  const analyticsArchive: AnalyticsArchiveStatus = buildArchiveStatus(
+    archiveDescriptors.length,
+    0,
+    0,
+    0,
+    [],
+    [],
+    []
+  );
+
+  const analyticsCoverage: AnalyticsCoverageSummary = {
+    indexedRaceResults: 0,
+    indexedQualifyingSessions: 0,
+    totalCompletedRaceSessions: archiveDescriptors.length,
+  };
+
   return {
     lastUpdated: new Date().toISOString(),
     year: 2026,
@@ -344,9 +547,50 @@ function transformCoreData(raw: RawCoreData): ChampionshipDataSnapshot {
     teamStandings,
     raceWeekends,
     raceResults,
+    analyticsArchive,
+    analyticsCoverage,
     allDrivers,
     driversByTeam,
     dataSource: 'openf1',
+  };
+}
+
+function applyArchiveReconstruction(
+  snapshot: ChampionshipDataSnapshot,
+  descriptors: HistoricalRaceSessionDescriptor[]
+): ChampionshipDataSnapshot {
+  if (descriptors.length === 0) {
+    return snapshot;
+  }
+
+  const rebuiltArchive = rebuildArchiveResultsFromCache(descriptors, snapshot.allDrivers);
+  if (rebuiltArchive.results.length === 0 && !rebuiltArchive.archiveStatus.hasPendingWork) {
+    return snapshot;
+  }
+
+  const mergedResults = [...snapshot.raceResults];
+  rebuiltArchive.results.forEach((archiveResult) => {
+    const index = mergedResults.findIndex((existing) => existing.meetingKey === archiveResult.meetingKey);
+    if (index >= 0) {
+      mergedResults[index] = archiveResult;
+    } else {
+      mergedResults.push(archiveResult);
+    }
+  });
+
+  const sortedResults = mergedResults.sort((a, b) => a.round - b.round);
+
+  if (import.meta.env.DEV) {
+    console.info(
+      `[APEX Archive] descriptors=${descriptors.length} indexed=${rebuiltArchive.archiveStatus.successfullyIndexedRaceSessions} pending=${rebuiltArchive.archiveStatus.pendingDescriptors.length + rebuiltArchive.archiveStatus.skippedDescriptors.length} reconstructedFromCache=${rebuiltArchive.results.length}`
+    );
+  }
+
+  return {
+    ...snapshot,
+    raceResults: sortedResults,
+    analyticsArchive: rebuiltArchive.archiveStatus,
+    analyticsCoverage: rebuiltArchive.coverage,
   };
 }
 
@@ -355,6 +599,7 @@ function transformCoreData(raw: RawCoreData): ChampionshipDataSnapshot {
 // ============================================================================
 
 export const openF1Service = {
+  buildHistoricalRaceSessionDescriptors,
   /**
    * Check if the API is in cooldown
    */
@@ -387,7 +632,20 @@ export const openF1Service = {
     if (!forceRefresh) {
       const cached = cacheService.getCoreSnapshot<ChampionshipDataSnapshot>();
       if (cached.status === 'valid' && cached.data) {
-        return { data: cached.data, error: null, fromCache: true };
+        const cachedMeetings = cacheService.getMeetings<OpenF1Meeting[]>();
+        const cachedSessions = cacheService.getSessions<OpenF1Session[]>();
+        const meetings = cachedMeetings.status === 'valid' && cachedMeetings.data ? cachedMeetings.data : [];
+        const sessions = cachedSessions.status === 'valid' && cachedSessions.data ? cachedSessions.data : [];
+        const descriptors = buildHistoricalRaceSessionDescriptors(meetings, sessions);
+        const reconstructed = descriptors.length > 0
+          ? applyArchiveReconstruction(cached.data, descriptors)
+          : cached.data;
+
+        if (reconstructed !== cached.data) {
+          cacheService.setCoreSnapshot(reconstructed);
+        }
+
+        return { data: reconstructed, error: null, fromCache: true };
       }
     }
 
@@ -405,11 +663,15 @@ export const openF1Service = {
     try {
       const raw = await fetchCoreData(year, onProgress);
       const snapshot = transformCoreData(raw);
+      const archivedDescriptors = buildHistoricalRaceSessionDescriptors(raw.meetings, raw.sessions);
+      const reconstructedSnapshot = archivedDescriptors.length > 0
+        ? applyArchiveReconstruction(snapshot, archivedDescriptors)
+        : snapshot;
 
       // Cache the result
-      cacheService.setCoreSnapshot(snapshot);
+      cacheService.setCoreSnapshot(reconstructedSnapshot);
 
-      return { data: snapshot, error: null, fromCache: false };
+      return { data: reconstructedSnapshot, error: null, fromCache: false };
     } catch (error) {
       const apiError =
         error instanceof OpenF1Error ? error : OpenF1Error.unknown(error);
@@ -431,82 +693,181 @@ export const openF1Service = {
    * This should be called explicitly, not on initial load
    */
   async fetchAnalyticsArchive(
-    sessions: OpenF1Session[],
+    descriptors: HistoricalRaceSessionDescriptor[],
     onProgress?: (current: number, total: number) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    driverLookup?: Map<number, OpenF1Driver>,
+    options: { totalCompletedRaceSessions?: number; isResume?: boolean; existingArchiveStatus?: AnalyticsArchiveStatus } = {}
   ): Promise<{
     results: RaceResult[];
     errors: OpenF1Error[];
     processedCount: number;
+    archiveStatus: AnalyticsArchiveStatus;
   }> {
-    const completedRaceSessions = sessions
-      .filter(isCompletedRaceSession)
-      .sort((a, b) => new Date(a.date_end).getTime() - new Date(b.date_end).getTime());
-
     const results: RaceResult[] = [];
     const errors: OpenF1Error[] = [];
+    const pendingDescriptors: ArchiveDescriptorStatus[] = [];
+    const skippedDescriptors: ArchiveDescriptorStatus[] = [];
+    const totalCompletedRaceSessions = options.totalCompletedRaceSessions ?? descriptors.length;
+    const mode = options.isResume ? 'resume' : 'initial';
+    let successfullyIndexedRaceSessions = options.existingArchiveStatus?.successfullyIndexedRaceSessions ?? 0;
+    let raceSessionsWithVerifiedWinner = options.existingArchiveStatus?.raceSessionsWithVerifiedWinner ?? 0;
+    let qualifyingSessionsIndexed = options.existingArchiveStatus?.qualifyingSessionsIndexed ?? 0;
 
-    for (let i = 0; i < completedRaceSessions.length; i++) {
+    if (import.meta.env.DEV) {
+      console.info(
+        `[APEX Archive] mode=${mode} totalDescriptors=${totalCompletedRaceSessions} workList=${descriptors.length} meetings=${descriptors.map((descriptor) => descriptor.meetingName).join(', ')}`
+      );
+    }
+
+    if (descriptors.length === 0) {
+      return {
+        results: [],
+        errors: [],
+        processedCount: 0,
+        archiveStatus: buildArchiveStatus(
+          totalCompletedRaceSessions,
+          successfullyIndexedRaceSessions,
+          raceSessionsWithVerifiedWinner,
+          qualifyingSessionsIndexed,
+          pendingDescriptors,
+          skippedDescriptors,
+          errors
+        ),
+      };
+    }
+
+    for (let i = 0; i < descriptors.length; i++) {
       if (signal?.aborted) break;
 
-      const session = completedRaceSessions[i];
-      onProgress?.(i + 1, completedRaceSessions.length);
+      const descriptor = descriptors[i];
+      onProgress?.(i + 1, descriptors.length);
 
-      // Check cooldown before each request
       if (this.isInCooldown()) {
         errors.push(OpenF1Error.rateLimited(this.getCooldownRemaining()));
         break;
       }
 
       try {
-        // Check cache first
-        const cached = cacheService.getRaceResult<OpenF1SessionResult[]>(
-          session.session_key
-        );
-
+        const cachedRace = cacheService.getRaceResult<OpenF1SessionResult[]>(descriptor.raceSessionKey);
         let raceResults: OpenF1SessionResult[];
-        if (cached.status === 'valid' && cached.data) {
-          raceResults = cached.data;
+        if (cachedRace.status === 'valid' && cachedRace.data) {
+          raceResults = cachedRace.data;
         } else {
-          raceResults = (await openF1Client.getHistorical(
-            session.session_key,
-            'race'
-          )) as OpenF1SessionResult[];
-          cacheService.setRaceResult(session.session_key, raceResults);
+          raceResults = (await openF1Client.getSessionResults(descriptor.raceSessionKey)) as OpenF1SessionResult[];
+          if (raceResults.length === 0) {
+            cacheService.remove(CACHE_CONFIG.keys.raceResult(descriptor.raceSessionKey));
+            skippedDescriptors.push({
+              round: descriptor.round,
+              meetingKey: descriptor.meetingKey,
+              meetingName: descriptor.meetingName,
+              raceSessionKey: descriptor.raceSessionKey,
+              reason: 'empty_race_result',
+            });
+            continue;
+          }
+          cacheService.setRaceResult(descriptor.raceSessionKey, raceResults);
         }
 
-        // Build race result entry
-        const driverResultsMap = new Map<
-          number,
-          { racePosition: number | null; raceStatus: string; qualifyingPosition: number | null; points: number }
-        >();
+        if (raceResults.length === 0) {
+          skippedDescriptors.push({
+            round: descriptor.round,
+            meetingKey: descriptor.meetingKey,
+            meetingName: descriptor.meetingName,
+            raceSessionKey: descriptor.raceSessionKey,
+            reason: 'empty_race_result',
+          });
+          continue;
+        }
+
+        let qualifyingResults: OpenF1SessionResult[] | null = null;
+        if (descriptor.qualifyingSessionKey) {
+          const cachedQualifying = cacheService.getQualifyingResult<OpenF1SessionResult[]>(descriptor.qualifyingSessionKey);
+          if (cachedQualifying.status === 'valid' && cachedQualifying.data) {
+            qualifyingResults = cachedQualifying.data;
+          } else {
+            qualifyingResults = (await openF1Client.getSessionResults(descriptor.qualifyingSessionKey)) as OpenF1SessionResult[];
+            if (qualifyingResults.length > 0) {
+              cacheService.setQualifyingResult(descriptor.qualifyingSessionKey, qualifyingResults);
+              qualifyingSessionsIndexed += 1;
+            }
+          }
+        }
+
+        const driverResultsMap = new Map<number, { racePosition: number | null; raceStatus: 'finished' | 'dnf' | 'dns' | 'dsq'; qualifyingPosition: number | null }>();
 
         raceResults.forEach((r) => {
+          const raceStatus = mapOpenF1RaceStatus(r);
+          const qualifyingPosition = qualifyingResults?.find((q) => q.driver_number === r.driver_number)?.position ?? null;
           driverResultsMap.set(r.driver_number, {
             racePosition: r.position,
-            raceStatus: r.status || 'finished',
-            qualifyingPosition: null,
-            points: r.points || 0,
+            raceStatus,
+            qualifyingPosition,
           });
         });
 
+        const winner = raceResults.find((result) => result.position === 1);
+        const polePosition = qualifyingResults?.find((result) => result.position === 1) ?? null;
+
+        const winnerDriver = winner ? driverLookup?.get(winner.driver_number) ?? null : null;
+        const poleDriver = polePosition ? driverLookup?.get(polePosition.driver_number) ?? null : null;
+
+        if (!winner) {
+          pendingDescriptors.push({
+            round: descriptor.round,
+            meetingKey: descriptor.meetingKey,
+            meetingName: descriptor.meetingName,
+            raceSessionKey: descriptor.raceSessionKey,
+            reason: 'missing_winner_position',
+          });
+        } else {
+          raceSessionsWithVerifiedWinner += 1;
+        }
+
+        successfullyIndexedRaceSessions += 1;
+
         results.push({
-          round: i + 1,
-          meetingKey: session.meeting_key,
-          meetingName: session.location,
-          circuitName: session.location,
-          country: session.country_name,
-          date: session.date_end,
-          winner: null, // Would need driver data to resolve
-          polePosition: null,
+          round: descriptor.round,
+          meetingKey: descriptor.meetingKey,
+          meetingName: descriptor.meetingName,
+          circuitName: descriptor.circuitName,
+          country: descriptor.country,
+          date: descriptor.raceEndDate,
+          winner: winnerDriver
+            ? {
+                driverNumber: winnerDriver.driver_number,
+                driverName: winnerDriver.full_name,
+                driverAcronym: winnerDriver.name_acronym,
+                teamName: winnerDriver.team_name,
+              }
+            : null,
+          polePosition: poleDriver
+            ? {
+                driverNumber: poleDriver.driver_number,
+                driverName: poleDriver.full_name,
+                driverAcronym: poleDriver.name_acronym,
+                teamName: poleDriver.team_name,
+              }
+            : null,
           driverResults: driverResultsMap,
         });
       } catch (error) {
-        errors.push(error instanceof OpenF1Error ? error : OpenF1Error.unknown(error));
-        // Stop on rate limit
-        if (error instanceof OpenF1Error && error.type === 'rate_limited') {
+        const apiError = error instanceof OpenF1Error ? error : OpenF1Error.unknown(error);
+        errors.push(apiError);
+        skippedDescriptors.push({
+          round: descriptor.round,
+          meetingKey: descriptor.meetingKey,
+          meetingName: descriptor.meetingName,
+          raceSessionKey: descriptor.raceSessionKey,
+          reason: apiError.type === 'rate_limited' ? 'rate_limited' : 'request_failed',
+        });
+        if (apiError.type === 'rate_limited') {
           break;
         }
+      }
+
+      if (i < descriptors.length - 1 && !this.isInCooldown()) {
+        await new Promise((resolve) => setTimeout(resolve, OPENF1_CONFIG.analyticsRequestInterval));
       }
     }
 
@@ -514,6 +875,15 @@ export const openF1Service = {
       results,
       errors,
       processedCount: results.length,
+      archiveStatus: buildArchiveStatus(
+        totalCompletedRaceSessions,
+        successfullyIndexedRaceSessions,
+        raceSessionsWithVerifiedWinner,
+        qualifyingSessionsIndexed,
+        pendingDescriptors,
+        skippedDescriptors,
+        errors
+      ),
     };
   },
 

@@ -126,6 +126,10 @@ export function ForecastEnginePanel({ data }: ForecastEnginePanelProps) {
     return team?.performanceIndex || null;
   }
 
+  const indexedRaceResults = data?.analyticsCoverage?.indexedRaceResults ?? 0;
+  const indexedQualifyingSessions = data?.analyticsCoverage?.indexedQualifyingSessions ?? 0;
+  const totalCompletedRaceSessions = data?.analyticsArchive?.totalCompletedRaceSessions ?? completedRounds;
+
   const factors: FactorCardProps[] = leader
     ? [
         {
@@ -139,7 +143,9 @@ export function ForecastEnginePanel({ data }: ForecastEnginePanelProps) {
           title: 'Average Qualifying',
           icon: Zap,
           value: getAvgQualifying(leader),
-          description: 'Mean grid position from completed races',
+          description: indexedQualifyingSessions > 0
+            ? `${indexedQualifyingSessions} qualifying session${indexedQualifyingSessions === 1 ? '' : 's'} indexed`
+            : 'Mean grid position from completed races',
           dataType: getAvgQualifying(leader) !== null ? 'derived' : 'unavailable',
         },
         {
@@ -148,7 +154,9 @@ export function ForecastEnginePanel({ data }: ForecastEnginePanelProps) {
           value: leader.averageRaceFinish !== null
             ? formatPosition(Math.round(leader.averageRaceFinish))
             : null,
-          description: 'Mean finishing position (excl. DNFs)',
+          description: indexedRaceResults > 0
+            ? `${indexedRaceResults} race result${indexedRaceResults === 1 ? '' : 's'} indexed across ${totalCompletedRaceSessions} completed rounds`
+            : 'Mean finishing position (excl. DNFs)',
           dataType: leader.averageRaceFinish !== null ? 'derived' : 'unavailable',
         },
         {
@@ -157,7 +165,9 @@ export function ForecastEnginePanel({ data }: ForecastEnginePanelProps) {
           value: leader.raceCompletionRate !== null
             ? `${leader.raceCompletionRate}%`
             : null,
-          description: `Finish rate over ${completedRounds} races`,
+          description: indexedRaceResults > 0
+            ? `${indexedRaceResults} race result${indexedRaceResults === 1 ? '' : 's'} indexed across ${totalCompletedRaceSessions} completed rounds`
+            : `Finish rate over ${completedRounds} races`,
           dataType: leader.raceCompletionRate !== null ? 'derived' : 'unavailable',
         },
         {

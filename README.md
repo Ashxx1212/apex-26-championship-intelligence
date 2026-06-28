@@ -120,7 +120,8 @@ src/
 
 ### Analytics Archive (Phase B)
 - Click "LOAD ANALYTICS ARCHIVE" in Data Integrity panel
-- Fetches historical race results one at a time
+- Indexes completed Race and standard Qualifying session results progressively from OpenF1
+- Sprint sessions are intentionally excluded from the initial reliability and form metrics
 - 2.5-second delay between historical requests
 - Progress shown: "INDEXING ROUND X OF Y"
 - Stops gracefully on rate limit, preserving collected data

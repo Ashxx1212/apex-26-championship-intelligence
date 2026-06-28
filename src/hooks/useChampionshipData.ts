@@ -9,9 +9,10 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { openF1Service, OpenF1Error } from '../services/openF1Service';
+import { cacheService } from '../services/cacheService';
 import { enrichDriverStandings, enrichTeamStandings } from '../utils/championshipMetrics';
 import { UI_CONFIG } from '../config/appConfig';
-import type { ChampionshipDataSnapshot, OpenF1Session } from '../types/f1';
+import type { ChampionshipDataSnapshot, OpenF1Meeting, OpenF1Session, HistoricalRaceSessionDescriptor, RaceResult } from '../types/f1';
 import type { DataLoadingPhase, AppError, DataSourceState } from '../types/app';
 
 interface UseChampionshipDataResult {
@@ -24,7 +25,7 @@ interface UseChampionshipDataResult {
   isFromCache: boolean;
   lastSyncTime: string | null;
   cooldownSeconds: number;
-  analyticsProgress: { current: number; total: number } | null;
+  analyticsProgress: { current: number; total: number; mode: 'initial' | 'resume' } | null;
   loadingMessage: string;
   refreshData: (force?: boolean) => Promise<void>;
   loadAnalyticsArchive: () => Promise<void>;
@@ -49,11 +50,12 @@ export function useChampionshipData(): UseChampionshipDataResult {
   const [isFromCache, setIsFromCache] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState('');
-  const [analyticsProgress, setAnalyticsProgress] = useState<{ current: number; total: number } | null>(null);
+  const [analyticsProgress, setAnalyticsProgress] = useState<{ current: number; total: number; mode: 'initial' | 'resume' } | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
 
   const hasLoadedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const analyticsAbortControllerRef = useRef<AbortController | null>(null);
   const lastForceRefreshRef = useRef(0);
 
   /**
@@ -140,9 +142,7 @@ export function useChampionshipData(): UseChampionshipDataResult {
         setSourceState(result.fromCache ? 'cached' : 'live');
         setPhase('complete');
         hasLoadedRef.current = true;
-      }
-
-      if (result.error) {
+      } else if (result.error) {
         const appError: AppError = {
           type: result.error.type,
           message: result.error.message,
@@ -154,7 +154,7 @@ export function useChampionshipData(): UseChampionshipDataResult {
         if (result.error.type === 'rate_limited') {
           setSourceState('rate_limited');
           setCooldownSeconds(result.error.retryAfter || UI_CONFIG.rateLimitCooldownSeconds);
-        } else if (!result.data) {
+        } else {
           setSourceState('offline');
         }
       }
@@ -178,38 +178,106 @@ export function useChampionshipData(): UseChampionshipDataResult {
   const loadAnalyticsArchive = useCallback(async () => {
     if (!data || isAnalyticsLoading) return;
 
-    setIsAnalyticsLoading(true);
-    setAnalyticsProgress(null);
+    analyticsAbortControllerRef.current?.abort();
+    analyticsAbortControllerRef.current = new AbortController();
 
     try {
-      // Get sessions from cached data
-      const cached = await openF1Service.fetchCoreSnapshot(2026, { forceRefresh: false });
-      if (!cached.data) return;
+      const cachedMeetings = cacheService.getMeetings<OpenF1Meeting[]>();
+      const cachedSessions = cacheService.getSessions<OpenF1Session[]>();
+      const meetings = cachedMeetings.status === 'valid' && cachedMeetings.data ? cachedMeetings.data : [];
+      const sessions = cachedSessions.status === 'valid' && cachedSessions.data ? cachedSessions.data : [];
 
-      const sessions = cached.data.raceWeekends
-        .map((rw) => rw.raceSessionKey)
-        .filter((key): key is number => key !== null);
+      const allCompletedDescriptors = openF1Service.buildHistoricalRaceSessionDescriptors(meetings, sessions);
+      if (allCompletedDescriptors.length === 0) {
+        return;
+      }
+
+      const isResume = Boolean(data.analyticsArchive?.hasPendingWork);
+      const totalCompletedRaceSessions = data.analyticsArchive?.totalCompletedRaceSessions ?? allCompletedDescriptors.length;
+      const descriptorsToProcess = isResume
+        ? allCompletedDescriptors.filter((descriptor) => {
+            const existingResult = (data.raceResults || []).find((result) => result.meetingKey === descriptor.meetingKey);
+            const hasVerifiedWinner = Boolean(existingResult?.winner);
+            const cachedRace = cacheService.getRaceResult(descriptor.raceSessionKey);
+            const cachedRaceHasVerifiedWinner = Boolean(
+              cachedRace.status === 'valid' &&
+              Array.isArray(cachedRace.data) &&
+              cachedRace.data.some((item) => item.position === 1)
+            );
+            const isPending = (data.analyticsArchive?.pendingDescriptors || []).some((item) => item.meetingKey === descriptor.meetingKey);
+            const isSkipped = (data.analyticsArchive?.skippedDescriptors || []).some((item) => item.meetingKey === descriptor.meetingKey);
+            return (isPending || isSkipped || !hasVerifiedWinner) && !cachedRaceHasVerifiedWinner;
+          })
+        : allCompletedDescriptors;
+
+      if (isResume && descriptorsToProcess.length === 0) {
+        setAnalyticsProgress({ current: 0, total: 0, mode: 'resume' });
+        return;
+      }
+
+      if (import.meta.env.DEV) {
+        console.info(
+          `[APEX Archive] mode=${isResume ? 'resume' : 'initial'} totalDescriptors=${allCompletedDescriptors.length} workList=${descriptorsToProcess.length} meetings=${descriptorsToProcess.map((descriptor) => descriptor.meetingName).join(', ')}`
+        );
+      }
+
+      setIsAnalyticsLoading(true);
+      setAnalyticsProgress({ current: 0, total: descriptorsToProcess.length, mode: isResume ? 'resume' : 'initial' });
 
       const result = await openF1Service.fetchAnalyticsArchive(
-        sessions as unknown as OpenF1Session[],
-        (current, total) => setAnalyticsProgress({ current, total }),
-        abortControllerRef.current?.signal
+        descriptorsToProcess,
+        (current, total) => setAnalyticsProgress((prev) => prev ? { ...prev, current, total } : { current, total, mode: isResume ? 'resume' : 'initial' }),
+        analyticsAbortControllerRef.current.signal,
+        data.allDrivers,
+        { totalCompletedRaceSessions, isResume, existingArchiveStatus: data.analyticsArchive }
       );
 
       if (result.results.length > 0) {
-        // Merge results into snapshot
-        setData((prev) =>
-          prev
-            ? {
-                ...prev,
-                raceResults: [...prev.raceResults, ...result.results],
-              }
-            : null
-        );
+        setData((prev) => {
+          if (!prev) return null;
+
+          const mergedResults = [...prev.raceResults];
+          result.results.forEach((archiveResult) => {
+            const index = mergedResults.findIndex((existing) => existing.meetingKey === archiveResult.meetingKey);
+            if (index >= 0) {
+              mergedResults[index] = archiveResult;
+            } else {
+              mergedResults.push(archiveResult);
+            }
+          });
+
+          const sortedResults = mergedResults.sort((a, b) => a.round - b.round);
+          const enriched = enrichSnapshot({ ...prev, raceResults: sortedResults, analyticsArchive: result.archiveStatus, analyticsCoverage: { indexedRaceResults: result.archiveStatus.successfullyIndexedRaceSessions, indexedQualifyingSessions: result.archiveStatus.qualifyingSessionsIndexed, totalCompletedRaceSessions: result.archiveStatus.totalCompletedRaceSessions } });
+          const updatedRaceWeekends = enriched.raceWeekends.map((weekend) => {
+            const matchingResult = sortedResults.find((result) => result.meetingKey === weekend.meetingKey);
+            if (!matchingResult?.winner) {
+              return weekend;
+            }
+            return {
+              ...weekend,
+              raceWinner: matchingResult.winner,
+            };
+          });
+
+          return {
+            ...enriched,
+            raceWeekends: updatedRaceWeekends,
+            analyticsArchive: result.archiveStatus,
+            analyticsCoverage: {
+              indexedRaceResults: result.archiveStatus.successfullyIndexedRaceSessions,
+              indexedQualifyingSessions: result.archiveStatus.qualifyingSessionsIndexed,
+              totalCompletedRaceSessions: result.archiveStatus.totalCompletedRaceSessions,
+            },
+          };
+        });
       }
 
       if (result.errors.length > 0) {
         const firstError = result.errors[0];
+        if (firstError.type === 'rate_limited') {
+          setCooldownSeconds(firstError.retryAfter || UI_CONFIG.rateLimitCooldownSeconds);
+          setSourceState('rate_limited');
+        }
         setError({
           type: firstError.type,
           message: firstError.message,
@@ -217,11 +285,18 @@ export function useChampionshipData(): UseChampionshipDataResult {
           canShowCachedData: true,
         });
       }
+    } catch (err) {
+      const apiError = err instanceof OpenF1Error ? err : OpenF1Error.unknown(err);
+      setError({
+        type: apiError.type,
+        message: apiError.message,
+        canShowCachedData: true,
+      });
     } finally {
       setIsAnalyticsLoading(false);
       setAnalyticsProgress(null);
     }
-  }, [data, isAnalyticsLoading]);
+  }, [data, isAnalyticsLoading, enrichSnapshot]);
 
   /**
    * Refresh data
@@ -258,6 +333,7 @@ export function useChampionshipData(): UseChampionshipDataResult {
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
+      analyticsAbortControllerRef.current?.abort();
     };
   }, []);
 
