@@ -18,25 +18,28 @@ export function DriverStandingsPanel({ data, isLoading, onDriverSelect }: Driver
     ? `${archiveStatus.successfullyIndexedRaceSessions}/${archiveStatus.totalCompletedRaceSessions} indexed rounds`
     : null;
 
-  const renderFormBadge = (form: ('W' | 'P' | 'D' | 'R')[], index: number) => {
-    const colors = {
-      W: 'bg-crimson text-white',
-      P: 'bg-amber text-black',
-      D: 'bg-cyan text-black',
-      R: 'bg-white/20 text-white/60',
-    };
-
-    return (
-      <span
-        key={index}
-        className={`inline-flex items-center justify-center w-4 h-4 text-[9px] font-bold rounded ${
-          colors[form] || colors.R
-        }`}
-      >
-        {form}
-      </span>
-    );
+  const renderFormBadge = (
+  form: 'W' | 'P' | 'D' | 'R',
+  index: number
+) => {
+  const colors = {
+    W: 'bg-crimson text-white',
+    P: 'bg-amber text-black',
+    D: 'bg-cyan text-black',
+    R: 'bg-white/20 text-white/60',
   };
+
+  return (
+    <span
+      key={index}
+      className={`inline-flex items-center justify-center w-4 h-4 text-[9px] font-bold rounded ${
+        colors[form]
+      }`}
+    >
+      {form}
+    </span>
+  );
+};
 
   const renderContent = () => {
     if (isLoading) {

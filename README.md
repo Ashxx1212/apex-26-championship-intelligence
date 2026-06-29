@@ -1,211 +1,344 @@
 # APEX 26 — Championship Intelligence
 
-A premium cinematic motorsport analytics portfolio project built with React, TypeScript, and the OpenF1 public API.
+A cinematic motorsport intelligence portfolio system built with **React, TypeScript, Vite, and OpenF1-derived public data**.
 
-## Project Overview
+APEX 26 turns verified championship, event, driver, and constructor information into a connected race-operations interface. It combines a Command Centre, Driver Intelligence dossiers, Constructor Intelligence, Circuit Matrix, transparent Scenario Lab, historical replay capability, local caching, archive recovery, and explicit data-integrity controls.
 
-APEX 26 is an unofficial motorsport analytics dashboard that displays verified 2026 championship data from the OpenF1 public API. The application features a cinematic command-centre interface with real-time data synchronization, intelligent caching, and a rate-limited request architecture.
+> **Portfolio project:** APEX 26 is an unofficial motorsport analytics demonstration. It is not affiliated with Formula 1, the FIA, any racing team, driver, or commercial rights holder.
 
-**Note:** This is a portfolio project for educational and analytical purposes. It is not affiliated with Formula 1, the FIA, or any racing team.
+---
 
-## Features Currently Implemented
+## Highlights
 
-### Core Features
-- **Cinematic Boot Sequence**: Full-screen initialization with speech synthesis narration
-- **Command Centre Dashboard**: Dark telemetry-style interface with scan lines and grid textures
-- **Drivers' Championship Standings**: Real standings from OpenF1 API with team colors and form indicators
-- **Constructors' Championship**: Team standings with performance metrics
-- **Season Timeline**: 2026 race calendar with completed/active/upcoming status
-- **Performance Factors**: Calculated metrics for championship analysis
+* **Cinematic Command Centre** for championship state, latest verified results, event focus, operational watchlists, and data status.
+* **Shared Intelligence Context** that carries selected driver, constructor, and race weekend across modules.
+* **Driver Intelligence** dossiers with recent race form, qualifying and finish metrics, completion rate, DNF count, teammate comparison, and verified observations.
+* **Constructor Intelligence** with team rankings, driver contribution split, evidence board, reliability signals, latest verified race detail, and archive coverage.
+* **Circuit Matrix** for season event navigation, verified race-result state, event readiness, and Scenario Lab routing.
+* **Scenario Lab** with a transparent Title Path Index based on current points and verified historical evidence—not title-win probability or betting advice.
+* **Session Intelligence Replay** for verified historical race review, replay event logs, timing order, race-control events, stint and weather observations when supported by verified historical data.
+* **Model Trust Console** documenting architecture, source policy, archive rules, metric definitions, replay integrity, scenario guardrails, and build record.
+* **Data Integrity Protocol** with local cache awareness, partial archive status, missing-round recovery, rate-limit handling, and no fabricated data.
 
-### Data Architecture
-- **Two-Phase Loading Model**: Core data loads first, analytics archive loads on demand
-- **Rate-Limited API Client**: Serial request queue to prevent HTTP 429 errors
-- **Versioned LocalStorage Cache**: 30-minute cache with expiry validation
-- **Error Recovery**: Graceful fallback to cached data when API unavailable
+---
 
-### Forecast Framework
-- **Calibration Mode**: Forecast engine shows "CALIBRATING" until sufficient data collected
-- **Pure Functions**: All analytics calculations are deterministic, testable functions
-- **No Fabricated Data**: Missing metrics show "CALIBRATING" instead of fake values
+## Product Modules
 
-## Architecture Overview
+### Command Centre
 
+The central operating view for:
+
+* Current championship and calendar status
+* Latest verified Grand Prix result
+* Selected event priority
+* Championship pressure and signal watchlists
+* Historical replay gateway
+* Data integrity controls
+* Cache, source, archive, and refresh status
+
+### Championship
+
+A championship-state workspace featuring:
+
+* Drivers’ standings
+* Constructors’ standings
+* Recent form markers
+* Championship momentum board
+* Season Vector race timeline
+* Race Radar for completed and upcoming events
+* Forecast calibration status
+* Data integrity and archive coverage controls
+
+### Driver Intel
+
+A driver-level intelligence dossier including:
+
+* Championship position and points gap
+* Recent form markers
+* Average classified finish
+* Average qualifying position
+* Completion rate and DNF count
+* Recent verified race history
+* Teammate comparison
+* Verified observations derived from indexed race records
+* Navigation to Constructor Intelligence, Circuit Matrix, and Scenario Lab
+
+### Team Performance
+
+A constructor intelligence workspace featuring:
+
+* Constructor ranking navigator
+* Driver contribution split
+* Team performance index
+* Reliability and completion metrics
+* Teammate advantage comparison
+* Latest verified team result
+* Archive coverage and evidence limitations
+* Routing to Driver Intel and Circuit Matrix
+
+### Circuit Matrix
+
+A season event and track intelligence module featuring:
+
+* Completed, active, and upcoming event states
+* Verified race winner display only after result indexing
+* Selected event context
+* Circuit type and calendar information
+* Archive readiness and result-verification state
+* Routing into Scenario Lab with the selected weekend preserved
+
+### Scenario Lab
+
+A transparent contender-analysis workspace.
+
+The Scenario Lab provides a **Title Path Index** based on:
+
+* Current championship position
+* Points gap to leader
+* Indexed race and qualifying evidence
+* Reliability and completion signals
+* Recent form
+* Archive coverage limitations
+
+It does **not** provide title-win probability, betting advice, financial advice, or fabricated race predictions.
+
+### Session Intelligence Replay
+
+A historical replay environment for indexed, verified sessions.
+
+Capabilities include:
+
+* Historical race-position order
+* Replay event bus
+* Race-control event review
+* Lap and timing progression
+* Verified stint and weather observations where available
+* Playback controls and replay speed selection
+* Explicit distinction between replay data and live timing
+
+---
+
+## Data Integrity Principles
+
+APEX follows strict data-discipline rules:
+
+1. **Verified inputs only**
+   Championship standings, session metadata, driver data, and race records are sourced from OpenF1-derived public data or a previously verified local cache.
+
+2. **No fabricated data**
+   Missing results, unavailable metrics, unindexed rounds, tyre state, weather, timing, strategy calls, and race outcomes are never invented.
+
+3. **Partial archive is visible**
+   Archive coverage is displayed across the system. Metrics derived from indexed race records are clearly labelled as partial when completed rounds remain pending.
+
+4. **Replay is not presented as live timing**
+   Historical session replay is explicitly labelled as replay intelligence. Live timing is shown only when a verified current timing source is available.
+
+5. **Scenario Lab is evidence-based**
+   The Title Path Index ranks current contender evidence; it is not a prediction engine or probability model.
+
+6. **Source restrictions are handled safely**
+   During provider restrictions, rate limits, or unavailable access, APEX preserves available verified cache data and pauses unsupported refresh behaviour.
+
+---
+
+## Data Architecture
+
+```text
+OpenF1-derived public source
+        ↓
+Rate-limited API client
+        ↓
+Versioned local cache and archive recovery
+        ↓
+Championship standings and verified race records
+        ↓
+Driver Intel / Team Performance / Circuit Matrix
+        ↓
+Scenario Lab / Session Intelligence Replay / Model Trust Console
 ```
-src/
-├── components/          # React UI components
-│   ├── AppShell.tsx     # Main layout wrapper
-│   ├── BootSequence.tsx # Initial loading animation
-│   ├── SideNavigation.tsx
-│   ├── TopStatusBar.tsx
-│   ├── ChampionshipHero.tsx
-│   ├── DriverStandingsPanel.tsx
-│   ├── ConstructorsPanel.tsx
-│   ├── RaceTimeline.tsx
-│   ├── ForecastEnginePanel.tsx
-│   ├── MethodologyPanel.tsx
-│   └── DataIntegrityPanel.tsx
-├── config/              # Application configuration
-│   ├── appConfig.ts     # App-level settings
-│   └── dataConfig.ts    # API and cache settings
-├── features/            # Feature modules
-│   └── forecast/        # Forecast engine (calibration mode)
-│       ├── forecastTypes.ts
-│       └── forecastEngine.ts
-├── hooks/               # React hooks
-│   └── useChampionshipData.ts
-├── services/            # API and caching
-│   ├── openF1Client.ts  # Rate-limited API client
-│   ├── openF1Service.ts # High-level data fetching
-│   └── cacheService.ts  # LocalStorage caching
-├── types/               # TypeScript types
-│   ├── f1.ts           # OpenF1 API types
-│   └── app.ts          # Application types
-└── utils/               # Utility functions
-    ├── formatters.ts    # Data formatting
-    └── championshipMetrics.ts
-```
 
-## Data Source and Integrity Rules
+---
 
-### OpenF1 API
-- Base URL: `https://api.openf1.org/v1`
-- Uses only public, historical session data
-- No live timing or real-time data streams
-- Completed sessions only (session ended 15+ minutes ago)
+## Cache and Archive Strategy
 
-### Request Queue Architecture
-- Serial processing: only one request at a time
-- Minimum 1.2 seconds between requests
-- Exponential backoff for 429 errors: 4s → 8s → 16s
-- Maximum 3 retries per request
-- Automatic cooldown after rate limits
+### Core Snapshot
 
-### Caching Strategy
-- Core snapshot: 30-minute cache lifetime
-- Raw meetings/sessions/results: 60-minute cache lifetime
-- Versioned cache envelope with expiry validation
-- Never cache failed API responses
-- Graceful fallback to expired cache on API failure
+The primary championship snapshot includes:
 
-### Data Integrity
-- No fabricated standings, results, or predictions
-- "CALIBRATING" shown for metrics with insufficient data
-- Clear indication of cached vs live data
-- Timestamp shown for all data syncs
+* 2026 calendar and event state
+* Driver standings
+* Constructor standings
+* Driver metadata
+* Latest verified result
+* Shared championship context
 
-## Current Limitations
+Core data is cached locally to allow fast re-entry and graceful fallback when public source access is temporarily unavailable.
 
-1. **Forecast Engine**: In calibration mode, not generating predictions
-2. **Driver Intel Module**: Locked, pending development
-3. **Team Performance Module**: Locked, pending development
-4. **Circuit Matrix**: Locked, pending development
-5. **Scenario Lab**: Locked, pending development
-6. **Analytics Archive**: Loads on demand, not automatically on initial load
+### Analytics Archive
 
-## How Live and Cached Data Work
+The analytics archive indexes completed race and qualifying data progressively.
 
-### Initial Load (Phase A)
-1. Check for valid cached core snapshot
-2. If cache valid, display immediately
-3. If cache expired/missing, fetch from OpenF1:
-   - Fetch 2026 meetings sequentially
-   - Fetch 2026 sessions sequentially
-   - Find latest completed Race session
-   - Fetch championship drivers
-   - Fetch championship teams
-   - Fetch driver metadata
-   - Fetch latest race results
-4. Cache successful response
+It supports:
 
-### Analytics Archive (Phase B)
-- Click "LOAD ANALYTICS ARCHIVE" in Data Integrity panel
-- Indexes completed Race and standard Qualifying session results progressively from OpenF1
-- Sprint sessions are intentionally excluded from the initial reliability and form metrics
-- 2.5-second delay between historical requests
-- Progress shown: "INDEXING ROUND X OF Y"
-- Stops gracefully on rate limit, preserving collected data
-- Can resume later with same button
+* Recent-form calculations
+* Average finish and qualifying metrics
+* Completion and reliability rates
+* Teammate comparisons
+* Driver contribution analysis
+* Historical replay inputs
+* Transparent archive coverage reporting
 
-### Rate Limit Handling
-- 429 triggers automatic cooldown
-- Cooldown persisted across sessions
-- Cached data displayed during cooldown
-- Force refresh disabled during cooldown
+Partially indexed rounds remain visibly marked as pending rather than being estimated.
+
+### Rate-Limit and Restriction Handling
+
+The application uses controlled request behaviour to reduce avoidable source pressure:
+
+* Serial API request processing
+* Delayed historical archive requests
+* Retry and cooldown handling for restricted access
+* Cached-data fallback
+* Visible source and archive status
+* Manual recovery controls for missing rounds
+
+---
+
+## Technology Stack
+
+* **React**
+* **TypeScript**
+* **Vite**
+* **Tailwind CSS**
+* **Lucide React**
+* **OpenF1 public API**
+* **LocalStorage-based versioned caching**
+* **Git and GitHub**
+
+---
 
 ## Project Structure
 
-Key files:
-- `src/config/` - Configuration constants
-- `src/services/` - API client and caching
-- `src/hooks/` - React data hooks
-- `src/components/` - UI components
-- `src/features/` - Feature modules (forecast)
-- `src/types/` - TypeScript definitions
+```text
+src/
+├── components/                  # Shared dashboard UI
+│   ├── AppShell.tsx
+│   ├── BootSequence.tsx
+│   ├── CommandCentrePanel.tsx
+│   ├── DataIntegrityPanel.tsx
+│   ├── SessionReplayDock.tsx
+│   ├── SideNavigation.tsx
+│   └── TopStatusBar.tsx
+│
+├── features/
+│   ├── championship/            # Championship state and standings
+│   ├── circuitMatrix/           # Event and track intelligence
+│   ├── driverIntel/             # Driver dossiers and comparisons
+│   ├── forecast/                # Calibration framework
+│   ├── notes/                   # Model Trust Console
+│   ├── scenarioLab/             # Transparent contender model
+│   └── teamPerformance/         # Constructor intelligence
+│
+├── hooks/
+│   ├── useChampionshipData.ts
+│   └── useSessionReplay.ts
+│
+├── services/
+│   ├── cacheService.ts
+│   ├── openF1Client.ts
+│   ├── openF1Service.ts
+│   └── sessionReplayService.ts
+│
+├── types/
+│   ├── app.ts
+│   ├── f1.ts
+│   └── liveSession.ts
+│
+├── utils/
+│   ├── championshipMetrics.ts
+│   └── formatters.ts
+│
+└── config/
+    ├── appConfig.ts
+    └── dataConfig.ts
+```
 
-## Local Setup Instructions
+---
+
+## Run Locally
 
 ### Prerequisites
-- Node.js 18+
-- npm or pnpm
+
+* Node.js 18 or later
+* npm
 
 ### Installation
 
 ```bash
-# Clone the repository
 git clone <repository-url>
-cd apex-26
-
-# Install dependencies
+cd apex-26-championship-intelligence
 npm install
+```
 
-# Copy environment file
-cp .env.example .env
+### Start Development Server
 
-# Start development server
+```bash
 npm run dev
 ```
 
-### Available Scripts
+The application will normally be available at:
+
+```text
+http://localhost:5173
+```
+
+### Production Build
 
 ```bash
-npm run dev       # Start development server
-npm run build     # Build for production
-npm run lint      # Run ESLint
+npm run build
+```
+
+---
+
+## Available Scripts
+
+```bash
+npm run dev       # Start local development server
+npm run build     # Create production build
+npm run lint      # Run ESLint checks
 npm run typecheck # Run TypeScript type checking
 ```
 
+---
+
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable               | Description         | Default                     |
+| ---------------------- | ------------------- | --------------------------- |
 | `VITE_OPENF1_BASE_URL` | OpenF1 API base URL | `https://api.openf1.org/v1` |
 
-No API keys or secrets required. The OpenF1 API is public.
+No private API key is required for the public-source workflow.
 
-## Future Roadmap
+---
 
-### Short Term
-- [ ] Complete analytics archive automation
-- [ ] Add qualifying data integration
-- [ ] Implement teammate comparison charts
+## Current Scope and Limitations
 
-### Medium Term
-- [ ] Driver Intelligence module
-- [ ] Team Performance module
-- [ ] Circuit Matrix with characteristics
-- [ ] Scenario Lab for what-if analysis
+* Public source access may be temporarily restricted during active sessions.
+* Analytics archive coverage can be partial while historical rounds are being indexed.
+* Missing historical records remain pending instead of being estimated.
+* Forecast calibration remains deliberately cautious until sufficient verified evidence exists.
+* The application does not provide betting, financial, race-strategy, or title-win prediction advice.
 
-### Long Term
-- [ ] Monte Carlo championship simulation
-- [ ] Deployment with scheduled data refresh
-- [ ] Test coverage (unit, integration)
-- [ ] Performance optimization
+---
 
-## Disclaimer
+## Portfolio Disclaimer
 
-APEX 26 is an unofficial motorsport analytics portfolio project. It is not affiliated with Formula 1, the FIA, any racing team, driver, or commercial rights holder. Data is displayed for educational and analytical purposes only. Forecasts are not betting advice.
+APEX 26 is an unofficial motorsport analytics portfolio project created for educational and demonstration purposes.
+
+It is not affiliated with Formula 1, the FIA, OpenF1, any racing team, driver, commercial rights holder, or motorsport organisation. All displayed intelligence should be treated as a portfolio demonstration of data architecture, UI engineering, analytics presentation, and responsible source-handling design.
+
+---
 
 ## License
 
-MIT License - See LICENSE file for details.
+MIT License.

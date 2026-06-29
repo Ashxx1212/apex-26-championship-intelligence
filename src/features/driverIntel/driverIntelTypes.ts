@@ -20,6 +20,16 @@ export interface DriverIntelRaceHistoryItem {
   isWinner: boolean;
 }
 
+export interface DriverIntelLatestResult {
+  round: number;
+  meetingName: string;
+  circuitName: string;
+  racePosition: number | null;
+  qualifyingPosition: number | null;
+  raceStatus: string;
+  isWinner: boolean;
+}
+
 export interface DriverIntelSnapshot {
   driverNumber: number;
   driverName: string;
@@ -35,12 +45,18 @@ export interface DriverIntelSnapshot {
   raceCompletionRate: number | null;
   dnfCount: number | null;
   teammateGap: number | null;
+
   teammate: DriverIntelTeammateSummary | null;
+
   raceHistory: DriverIntelRaceHistoryItem[];
+
+  latestVerifiedResult: DriverIntelLatestResult | null;
+
   archiveCoverage: {
     indexedRaceResults: number;
     totalCompletedRaceSessions: number;
     hasPendingWork: boolean;
   };
+
   observations: string[];
 }

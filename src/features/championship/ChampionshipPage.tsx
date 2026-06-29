@@ -21,11 +21,14 @@ interface ChampionshipPageProps {
   isFromCache: boolean;
   lastSyncTime: string | null;
   cooldownSeconds: number;
-  isAnalyticsLoading: boolean;
+isPublicAccessRestricted: boolean;
+sourceAccessRetrySeconds: number;
+isAnalyticsLoading: boolean;
   analyticsProgress: DataIntegrityPanelProps['analyticsProgress'];
   refreshData: () => void;
   loadAnalyticsArchive: DataIntegrityPanelProps['onLoadAnalytics'];
   onDriverSelect: (driverNumber: number) => void;
+  onTeamSelect: (teamName: string) => void;
 }
 
 export function ChampionshipPage({
@@ -37,14 +40,17 @@ export function ChampionshipPage({
   isFromCache,
   lastSyncTime,
   cooldownSeconds,
-  isAnalyticsLoading,
+isPublicAccessRestricted,
+sourceAccessRetrySeconds,
+isAnalyticsLoading,
   analyticsProgress,
   refreshData,
   loadAnalyticsArchive,
   onDriverSelect,
+  onTeamSelect,
 }: ChampionshipPageProps) {
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 max-w-[1800px] mx-auto">
+    <div className="mx-auto grid max-w-[1800px] grid-cols-1 gap-4 xl:grid-cols-12">
       {/* Season hero */}
       <div className="xl:col-span-12">
         <ChampionshipHero
@@ -57,7 +63,7 @@ export function ChampionshipPage({
       </div>
 
       {/* Main season analysis */}
-      <div className="xl:col-span-8 space-y-4">
+      <div className="space-y-4 xl:col-span-8">
         <DriverStandingsPanel
           data={data}
           isLoading={isLoading}
@@ -67,6 +73,8 @@ export function ChampionshipPage({
         <ForecastEnginePanel
           data={data}
           isLoading={isLoading}
+          onDriverSelect={onDriverSelect}
+          onTeamSelect={onTeamSelect}
         />
 
         <RaceTimeline
@@ -76,7 +84,7 @@ export function ChampionshipPage({
       </div>
 
       {/* Supporting analysis */}
-      <div className="xl:col-span-4 space-y-4">
+      <div className="space-y-4 xl:col-span-4">
         <ConstructorsPanel
           data={data}
           isLoading={isLoading}
@@ -94,12 +102,14 @@ export function ChampionshipPage({
           isAnalyticsLoading={isAnalyticsLoading}
           analyticsProgress={analyticsProgress}
           cooldownSeconds={cooldownSeconds}
+          isPublicAccessRestricted={isPublicAccessRestricted}
+sourceAccessRetrySeconds={sourceAccessRetrySeconds}
         />
       </div>
 
       {/* Footer */}
-      <div className="xl:col-span-12 pt-8 pb-4">
-        <p className="text-center text-[10px] text-white/20 tracking-wider max-w-xl mx-auto">
+      <div className="pb-4 pt-8 xl:col-span-12">
+        <p className="mx-auto max-w-xl text-center text-[10px] tracking-wider text-white/20">
           {DISCLAIMER_TEXT}
         </p>
       </div>

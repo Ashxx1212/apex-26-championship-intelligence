@@ -22,7 +22,7 @@ interface CircuitMatrixPageProps {
   isLoading: boolean;
   selectedMeetingKey?: number | null;
   onMeetingSelect?: (meetingKey: number) => void;
-  onOpenScenarioLab: (meetingKey: number) => void;
+  onOpenScenarioLab?: () => void;
 }
 
 function RoundCard({
@@ -359,9 +359,7 @@ export function CircuitMatrixPage({
 
                   <button
                     type="button"
-                    onClick={() =>
-                      onOpenScenarioLab(selectedWeekend.meetingKey)
-                    }
+                    onClick={onOpenScenarioLab}
                     className="mt-5 inline-flex items-center gap-2 border border-green-400/30 px-3 py-2 text-[9px] font-semibold tracking-[0.13em] text-green-400 transition-colors hover:bg-green-400/[0.07]"
                   >
                     OPEN SCENARIO LAB WITH THIS WEEKEND

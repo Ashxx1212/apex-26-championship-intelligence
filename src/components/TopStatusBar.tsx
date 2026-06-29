@@ -1,4 +1,4 @@
-import { Clock, RefreshCw, Radio } from 'lucide-react';
+import { Clock, LockKeyhole, RefreshCw, Radio } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { formatTime } from '../utils/formatters';
 import { DATA_STATUS_LABELS } from '../config/dataConfig';
@@ -16,6 +16,29 @@ interface TopStatusBarProps {
   cooldownSeconds: number;
   sourceState: DataSourceState;
   isFromCache: boolean;
+  isPublicAccessRestricted: boolean;
+  sourceAccessRetrySeconds: number;
+}
+
+function isLiveSessionAccessRestriction(error: AppError | null): boolean {
+  const message = error?.message?.toLowerCase() ?? '';
+
+  return (
+    message.includes('live session access restricted') ||
+    message.includes('public access restricted') ||
+    message.includes('public data access') ||
+    message.includes('authenticated users') ||
+    message.includes('access restricted during')
+  );
+}
+
+function formatRetry(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  return `${String(minutes).padStart(2, '0')}:${String(
+    remainingSeconds
+  ).padStart(2, '0')}`;
 }
 
 export function TopStatusBar({
@@ -30,8 +53,13 @@ export function TopStatusBar({
   cooldownSeconds,
   sourceState,
   isFromCache,
+  isPublicAccessRestricted,
+  sourceAccessRetrySeconds,
 }: TopStatusBarProps) {
   const [time, setTime] = useState(new Date());
+
+  const accessPaused =
+    isPublicAccessRestricted && sourceAccessRetrySeconds > 0;
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -42,6 +70,19 @@ export function TopStatusBar({
   }, []);
 
   const status = useMemo(() => {
+    const archiveFallbackActive =
+      isFromCache && (sourceState === 'offline' || Boolean(error));
+    const liveSessionRestriction = isLiveSessionAccessRestriction(error);
+
+    if (accessPaused) {
+      return {
+        label: 'ARCHIVE INTELLIGENCE ACTIVE',
+        accent: 'text-amber',
+        dot: 'bg-amber',
+        detail: `SOURCE PAUSED · ${formatRetry(sourceAccessRetrySeconds)}`,
+      };
+    }
+
     if (isLoading && sourceState !== 'cached') {
       return {
         label: loadingMessage || DATA_STATUS_LABELS.loading,
@@ -63,12 +104,25 @@ export function TopStatusBar({
       };
     }
 
+    if (archiveFallbackActive) {
+      return {
+        label: 'ARCHIVE INTELLIGENCE ACTIVE',
+        accent: 'text-amber',
+        dot: 'bg-amber',
+        detail: liveSessionRestriction
+          ? 'LIVE SESSION ACCESS RESTRICTED'
+          : 'SOURCE LINK TEMPORARILY UNAVAILABLE',
+      };
+    }
+
     if (sourceState === 'offline' || (error && !isFromCache)) {
       return {
         label: DATA_STATUS_LABELS.offline,
         accent: 'text-red-400',
         dot: 'bg-red-400',
-        detail: 'SOURCE UNAVAILABLE',
+        detail: liveSessionRestriction
+          ? 'LIVE SESSION ACCESS RESTRICTED'
+          : 'SOURCE UNAVAILABLE',
       };
     }
 
@@ -77,7 +131,7 @@ export function TopStatusBar({
         label: 'CACHED VERIFIED SNAPSHOT',
         accent: 'text-green-400/85',
         dot: 'bg-green-400',
-        detail: 'LOCAL DATA LAYER',
+        detail: 'LOCAL ARCHIVE LAYER',
       };
     }
 
@@ -88,15 +142,18 @@ export function TopStatusBar({
       detail: 'AUTO-SYNC READY',
     };
   }, [
+    accessPaused,
     cooldownSeconds,
     error,
     isFromCache,
     isLoading,
     loadingMessage,
+    sourceAccessRetrySeconds,
     sourceState,
   ]);
 
-  const canRefresh = !isLoading && cooldownSeconds === 0;
+  const canRefresh =
+    !isLoading && cooldownSeconds === 0 && !accessPaused;
 
   return (
     <header className="relative flex h-[62px] min-h-[62px] shrink-0 items-center border-b border-white/[0.09] bg-[#090a0d]/90 px-4 backdrop-blur-xl md:px-6">
@@ -129,7 +186,7 @@ export function TopStatusBar({
             <div
               className={`absolute inset-0 rounded-full ${status.dot} shadow-[0_0_10px_rgba(74,222,128,0.65)]`}
             />
-            {!error && (
+            {!error && !accessPaused && (
               <div
                 className={`absolute inset-0 rounded-full ${status.dot}/40 animate-ping`}
               />
@@ -179,22 +236,41 @@ export function TopStatusBar({
           onClick={onRefresh}
           disabled={!canRefresh}
           title={
-            cooldownSeconds > 0
-              ? `Cooldown: ${cooldownSeconds}s`
-              : 'Refresh verified data'
+            accessPaused
+              ? `Public source access paused. Retry in ${formatRetry(
+                  sourceAccessRetrySeconds
+                )}`
+              : cooldownSeconds > 0
+                ? `Cooldown: ${cooldownSeconds}s`
+                : 'Refresh verified data'
           }
-          className="
-            group flex items-center gap-2 rounded-sm border border-white/15
-            bg-white/[0.02] px-3 py-2 text-[10px] tracking-[0.12em] text-white/60
-            transition-all duration-200
-            hover:border-cyan/45 hover:bg-cyan/[0.05] hover:text-cyan
-            disabled:cursor-not-allowed disabled:opacity-40
-          "
+          className={`
+            group flex items-center gap-2 rounded-sm border px-3 py-2 text-[10px] tracking-[0.12em]
+            transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-55
+            ${
+              accessPaused
+                ? 'border-amber/30 bg-amber/[0.04] text-amber/75'
+                : 'border-white/15 bg-white/[0.02] text-white/60 hover:border-cyan/45 hover:bg-cyan/[0.05] hover:text-cyan'
+            }
+          `}
         >
-          <RefreshCw
-            className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : 'group-hover:rotate-90 transition-transform duration-300'}`}
-          />
-          <span className="hidden sm:inline">REFRESH</span>
+          {accessPaused ? (
+            <LockKeyhole className="h-3.5 w-3.5" />
+          ) : (
+            <RefreshCw
+              className={`h-3.5 w-3.5 ${
+                isLoading
+                  ? 'animate-spin'
+                  : 'group-hover:rotate-90 transition-transform duration-300'
+              }`}
+            />
+          )}
+
+          <span className="hidden sm:inline">
+            {accessPaused
+              ? `SOURCE PAUSED · ${formatRetry(sourceAccessRetrySeconds)}`
+              : 'REFRESH'}
+          </span>
         </button>
 
         <div className="hidden items-center gap-2 xl:flex">
@@ -213,7 +289,7 @@ export function TopStatusBar({
             className={`h-3.5 w-3.5 ${
               error && !isFromCache
                 ? 'text-red-400'
-                : isLoading
+                : accessPaused || isLoading
                   ? 'text-amber'
                   : 'text-cyan'
             }`}
@@ -222,7 +298,7 @@ export function TopStatusBar({
             className={`absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ${
               error && !isFromCache
                 ? 'bg-red-400'
-                : isLoading
+                : accessPaused || isLoading
                   ? 'bg-amber'
                   : isFromCache
                     ? 'bg-green-400'
