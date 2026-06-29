@@ -351,7 +351,7 @@ No private API key is required for the public-source workflow.
 * Public source access may be temporarily restricted during active sessions.
 * Analytics archive coverage can be partial while historical rounds are being indexed.
 * Missing historical records remain pending instead of being estimated.
-* * Predictive Outlook is an explainable, evidence-weighted portfolio model, not a trained machine-learning system.
+* Predictive Outlook is an explainable, evidence-weighted portfolio model, not a trained machine-learning system.
 * Forecast estimates remain deliberately cautious when completed-race evidence is limited or weather conditions increase uncertainty.
 * External weather signals are available only when the upcoming event falls inside the weather provider’s supported forecast window.
 * The application does not provide betting, financial, race-strategy, or title-win prediction advice.
