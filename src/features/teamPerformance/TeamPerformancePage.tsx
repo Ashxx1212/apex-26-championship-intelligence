@@ -35,7 +35,7 @@ interface TeamPerformancePageProps {
   selectedDriverNumber?: number | null;
   onTeamSelect?: (teamName: string) => void;
   onDriverSelect?: (driverNumber: number) => void;
-  onOpenRace?: (round: number) => void;
+  onOpenRace?: (meetingKey: number) => void;
 }
 
 interface DriverContribution {
@@ -280,6 +280,15 @@ export function TeamPerformancePage({
     standings.find((team) => team.teamName === activeTeamName) ??
     standings[0] ??
     null;
+const latestVerifiedRace =
+  raceResults.length > 0 ? raceResults[raceResults.length - 1] : null;
+
+const latestVerifiedMeetingKey =
+  latestVerifiedRace
+    ? data?.raceWeekends.find(
+        (weekend) => weekend.round === latestVerifiedRace.round
+      )?.meetingKey ?? null
+    : null;
 
   const chooseTeam = (teamName: string) => {
     setLocalSelectedTeamName(teamName);
@@ -887,11 +896,11 @@ export function TeamPerformancePage({
                 <button
                   type="button"
                   onClick={() => {
-                    if (onOpenRace && raceResults.length > 0) {
-                      onOpenRace(raceResults[raceResults.length - 1].round);
-                    }
-                  }}
-                  disabled={!onOpenRace}
+  if (onOpenRace && latestVerifiedMeetingKey !== null) {
+    onOpenRace(latestVerifiedMeetingKey);
+  }
+}}
+disabled={!onOpenRace || latestVerifiedMeetingKey === null}
                   className="flex items-center gap-1 text-[9px] font-semibold tracking-[0.12em] text-cyan transition-colors hover:text-white disabled:text-white/20"
                 >
                   OPEN IN CIRCUIT MATRIX

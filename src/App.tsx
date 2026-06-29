@@ -334,6 +334,10 @@ onMeetingSelect={(meetingKey) => {
       selectedDriverNumber={selectedDriverNumber}
       onTeamSelect={setSelectedTeamName}
       onDriverSelect={handleDriverSelect}
+      onOpenRace={(meetingKey) => {
+  setSelectedMeetingKey(meetingKey);
+  setActiveSection('circuit');
+}}
     />
   );
 }
