@@ -1,5 +1,7 @@
 # APEX 26 — Championship Intelligence
+
 **Live Demo:** https://apex-26-championship-intelligence.vercel.app/
+
 A cinematic motorsport intelligence portfolio system built with **React, TypeScript, Vite, and OpenF1-derived public data**.
 
 APEX 26 turns verified championship, event, driver, constructor, weather, and historical-session information into a connected race-operations interface. It combines a Command Centre, Driver Intelligence dossiers, Constructor Intelligence, Circuit Matrix, transparent Scenario Lab, historical replay capability, Predictive Outlook, local caching, archive recovery, and explicit data-integrity controls.
@@ -10,16 +12,23 @@ APEX 26 turns verified championship, event, driver, constructor, weather, and hi
 
 ## Highlights
 
-* **Cinematic Command Centre** for championship state, latest verified results, event focus, operational watchlists, and data status.
+* **Cinematic Command Centre** for championship state, latest verified results, event focus, operational watchlists, Predictive Outlook, and data status.
 * **Shared Intelligence Context** that carries selected driver, constructor, and race weekend across modules.
 * **Driver Intelligence** dossiers with recent race form, qualifying and finish metrics, completion rate, DNF count, teammate comparison, and verified observations.
 * **Constructor Intelligence** with team rankings, driver contribution split, evidence board, reliability signals, latest verified race detail, and archive coverage.
 * **Circuit Matrix** for season event navigation, verified race-result state, event readiness, and Scenario Lab routing.
 * **Scenario Lab** with a transparent Title Path Index based on current points and verified historical evidence—not title-win probability or betting advice.
+<<<<<<< HEAD
 * **Session Intelligence Replay** for verified historical race review, replay event logs, timing order, race-control events, stint and weather observations when supported by verified historical data.
 * **Predictive Outlook** for the next indexed Grand Prix, combining verified completed-race evidence, transparent Top 5 projected-winner estimates, model confidence, evidence coverage, reliability/form inputs, and external weather context when available.
 * **Model Trust Console** documenting architecture, source policy, archive rules, metric definitions, replay integrity, scenario guardrails, and build record.
 * **Data Integrity Protocol** with local cache awareness, partial archive status, missing-round recovery, rate-limit handling, and no fabricated data.
+=======
+* **Session Intelligence Replay** for verified historical race review, completed-race archive selection, replay event logs, timing order, race-control events, stint data, and weather observations when supported by verified historical data.
+* **Predictive Outlook** for the next indexed Grand Prix, combining verified completed-race evidence, transparent Top 5 projected-winner estimates, model confidence, evidence coverage, reliability/form inputs, and external weather context when available.
+* **Model Trust Console** documenting architecture, source policy, archive rules, metric definitions, replay integrity, forecast guardrails, scenario guardrails, and build record.
+* **Data Integrity Protocol** with local cache awareness, partial archive status, missing-round recovery, rate-limit handling, and no fabricated verified data.
+>>>>>>> 3fd39d4 (docs: document predictive outlook)
 
 ---
 
@@ -33,7 +42,8 @@ The central operating view for:
 * Latest verified Grand Prix result
 * Selected event priority
 * Championship pressure and signal watchlists
-* Historical replay gateway
+* Historical replay gateway and completed-race replay archive
+* Predictive Outlook for the next indexed Grand Prix
 * Data integrity controls
 * Cache, source, archive, and refresh status
 
@@ -109,6 +119,7 @@ A historical replay environment for indexed, verified sessions.
 
 Capabilities include:
 
+* Completed-race replay archive selector
 * Historical race-position order
 * Replay event bus
 * Race-control event review
@@ -116,6 +127,22 @@ Capabilities include:
 * Verified stint and weather observations where available
 * Playback controls and replay speed selection
 * Explicit distinction between replay data and live timing
+
+### Predictive Outlook
+
+An evidence-weighted race-estimation panel for the next indexed Grand Prix.
+
+Capabilities include:
+
+* Top 5 projected race-winner outlook
+* Transparent probability-style model estimates
+* Model confidence and completed-race evidence coverage
+* Recent form, race pace, qualifying, team-performance, and reliability inputs
+* Weather context including temperature, rain risk, precipitation, and wind when the event falls inside the supported forecast window
+* Automatic event recalculation when the next upcoming Grand Prix changes
+* Explicit distinction between verified historical evidence, external weather signals, and model-estimated outcomes
+
+Predictive Outlook is a portfolio-model feature. It does not present projections as official timing, betting advice, financial advice, guarantees, or driver-specific wet-weather performance claims.
 
 ---
 ### Predictive Outlook
@@ -139,7 +166,7 @@ Predictive Outlook is a portfolio-model feature. It does not present projections
 APEX follows strict data-discipline rules:
 
 1. **Verified inputs only**
-   Championship standings, session metadata, driver data, and race records are sourced from OpenF1-derived public data or a previously verified local cache.
+   Championship standings, session metadata, driver data, and completed race records are sourced from OpenF1-derived public data or a previously verified local cache.
 
 2. **No fabricated verified data**
    Missing results, unavailable metrics, unindexed rounds, tyre state, weather observations, timing, and strategy calls are never presented as verified facts.
@@ -176,6 +203,8 @@ Championship standings and verified race records
         ↓
 Driver Intel / Team Performance / Circuit Matrix
         ↓
+Predictive Outlook + external weather forecast context
+        ↓
 Scenario Lab / Session Intelligence Replay / Model Trust Console
 ```
 
@@ -187,7 +216,7 @@ Scenario Lab / Session Intelligence Replay / Model Trust Console
 
 The primary championship snapshot includes:
 
-* 2026 calendar and event state
+* Current calendar and event state
 * Driver standings
 * Constructor standings
 * Driver metadata
@@ -208,6 +237,7 @@ It supports:
 * Teammate comparisons
 * Driver contribution analysis
 * Historical replay inputs
+* Predictive Outlook evidence inputs
 * Transparent archive coverage reporting
 
 Partially indexed rounds remain visibly marked as pending rather than being estimated.
@@ -233,10 +263,16 @@ The application uses controlled request behaviour to reduce avoidable source pre
 * **Tailwind CSS**
 * **Lucide React**
 * **OpenF1 public API**
-* **LocalStorage-based versioned caching**
-* **Git and GitHub**
 * **External weather forecast service**
 * **Evidence-weighted predictive modelling**
+* **LocalStorage-based versioned caching**
+* **Git and GitHub**
+<<<<<<< HEAD
+* **External weather forecast service**
+* **Evidence-weighted predictive modelling**
+=======
+* **Vercel**
+>>>>>>> 3fd39d4 (docs: document predictive outlook)
 
 ---
 
@@ -259,6 +295,7 @@ src/
 │   ├── driverIntel/             # Driver dossiers and comparisons
 │   ├── forecast/                # Calibration framework
 │   ├── notes/                   # Model Trust Console
+│   ├── predictiveOutlook/       # Evidence-weighted race estimation
 │   ├── scenarioLab/             # Transparent contender model
 │   └── teamPerformance/         # Constructor intelligence
 │   ├── features/
@@ -272,16 +309,19 @@ src/
 │   ├── cacheService.ts
 │   ├── openF1Client.ts
 │   ├── openF1Service.ts
-│   └── sessionReplayService.ts
+│   ├── sessionReplayService.ts
+│   └── weatherForecastService.ts # External weather forecast context
 │
 ├── types/
 │   ├── app.ts
 │   ├── f1.ts
+│   ├── forecast.ts              # Forecast and weather types
 │   └── liveSession.ts
 │
 ├── utils/
 │   ├── championshipMetrics.ts
-│   └── formatters.ts
+│   ├── formatters.ts
+│   └── raceForecast.ts          # Transparent forecast scoring logic
 │
 └── config/
     ├── appConfig.ts
@@ -342,7 +382,7 @@ npm run typecheck # Run TypeScript type checking
 | ---------------------- | ------------------- | --------------------------- |
 | `VITE_OPENF1_BASE_URL` | OpenF1 API base URL | `https://api.openf1.org/v1` |
 
-No private API key is required for the public-source workflow.
+No private API key is required for the OpenF1 public-source workflow.
 
 ---
 
