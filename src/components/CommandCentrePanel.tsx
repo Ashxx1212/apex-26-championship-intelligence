@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { PredictiveOutlookPanel } from '../features/predictiveOutlook/PredictiveOutlookPanel';
 import { SessionReplayDock } from './SessionReplayDock';
 import {
   Activity,
@@ -1193,6 +1194,15 @@ export function CommandCentrePanel({
             )}
           </button>
         </div>
+        </section>
+<PredictiveOutlookPanel
+  data={data}
+  meeting={nextMeeting}
+  onDriverSelect={onDriverSelect}
+/>
+
+<section className="relative overflow-hidden border border-white/[0.10] bg-[#0b0d12]/80">
+  {/* Decision Deck */}
       </section>
             <section className="relative overflow-hidden border border-white/[0.10] bg-[#0b0d12]/80 shadow-[0_18px_45px_rgba(0,0,0,0.16)]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_5%_100%,rgba(220,20,60,0.06),transparent_25%),radial-gradient(circle_at_95%_0%,rgba(0,212,255,0.06),transparent_28%)]" />
