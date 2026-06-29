@@ -61,7 +61,7 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
               </h1>
 
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/50">
-                APEX 26 is a verified motorsport intelligence portfolio system. All displayed metrics derive from verified OpenF1 session data, local cache, or archive reconstruction. No predictions, tyre strategy, or live timing are shown unless a verified source supports them.
+                APEX 26 is a verified motorsport intelligence portfolio system. Verified historical metrics derive from OpenF1 session data, local cache, or archive reconstruction. Predictive Outlook is a separate evidence-weighted portfolio model for the next indexed Grand Prix; model estimates and external weather signals are labelled distinctly and are never presented as verified outcomes.
               </p>
             </div>
 
@@ -114,7 +114,7 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
                   HIDDEN BY DESIGN
                 </p>
                 <p className="mt-1 text-[9px] text-white/40">
-                  Live timing, tyres, predictions
+                  Live timing, tyre strategy, guarantees
                 </p>
               </div>
             </div>
@@ -133,7 +133,7 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
 
         <div className="p-4 md:p-5">
           <p className="mb-4 max-w-3xl text-[11px] leading-relaxed text-white/45">
-            Data flows from verified sources through cache and archive layers into championship standings and race records. All modules consume this verified intelligence; none generate synthetic inputs.
+            Verified historical data flows through cache and archive layers into championship standings and race records. Predictive Outlook creates explicitly labelled model estimates from verified completed-race evidence, while weather context is fetched separately and never mixed with verified results.
           </p>
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
@@ -196,7 +196,7 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
                   Intelligence Modules
                 </p>
               </div>
-              <p className="mt-2 text-sm font-semibold text-white">Driver Intel / Team / Circuit</p>
+              <p className="mt-2 text-sm font-semibold text-white">Intel / Team / Circuit / Forecast</p>
               <p className="mt-1 text-[10px] text-white/40">
                 Evidence-based analysis panels
               </p>
@@ -204,7 +204,7 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
           </div>
 
           <p className="mt-4 text-[10px] text-white/30">
-            <strong className="text-amber">Scenario Lab</strong> is a transparent evidence model, not betting advice or a title prediction engine. All outputs are derived from verified standings and indexed race evidence.
+            <strong className="text-amber">Scenario Lab</strong> and <strong className="text-cyan">Predictive Outlook</strong> are transparent evidence models. Scenario Lab ranks title-path evidence; Predictive Outlook estimates next-race winner likelihood. Neither is betting advice, financial advice, or a guaranteed outcome.
           </p>
         </div>
       </section>
@@ -275,7 +275,17 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
               Missing-Data Behaviour
             </p>
             <p className="mt-2 text-[11px] leading-relaxed text-white/70">
-              Null or unavailable values display as em-dash (—) or VERIFICATION PENDING. No interpolation, estimation, or synthetic fill is performed.
+              Null or unavailable verified values display as em-dash (—) or VERIFICATION PENDING. No interpolation, estimation, or synthetic fill is used to repair missing historical records. Forecast and weather context are separately labelled and never used to fill verified data gaps.
+            </p>
+          </div>
+
+          <div className="rounded-sm border border-cyan/25 bg-cyan/[0.03] p-3">
+            <p className="flex items-center gap-2 text-[8px] uppercase tracking-[0.18em] text-cyan/70">
+              <Gauge className="h-3 w-3 text-cyan" />
+              External Weather Context
+            </p>
+            <p className="mt-2 text-[11px] leading-relaxed text-white/70">
+              Weather context is requested separately for the next indexed Grand Prix when the event falls inside the provider’s supported forecast window. Temperature, rain risk, precipitation, and wind remain external context—not verified race-session facts.
             </p>
           </div>
 
@@ -380,6 +390,86 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
               Evidence-based contender ranking. Not a probability. Derived from points, reliability, and remaining races.
             </p>
           </div>
+
+          <div className="rounded-sm border border-cyan/25 bg-cyan/[0.03] p-3">
+            <p className="text-[8px] uppercase tracking-[0.18em] text-cyan">Predictive Outlook</p>
+            <p className="mt-2 text-[11px] font-semibold text-white">Portfolio-Model Estimate</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-white/40">
+              Ranked Top 5 next-race outlook derived from recent form, race pace, qualifying, team performance, and completion reliability. It is not a verified result or guarantee.
+            </p>
+          </div>
+
+          <div className="rounded-sm border border-cyan/25 bg-cyan/[0.03] p-3">
+            <p className="text-[8px] uppercase tracking-[0.18em] text-cyan">Weather Signal</p>
+            <p className="mt-2 text-[11px] font-semibold text-white">External Forecast Context</p>
+            <p className="mt-1 text-[10px] leading-relaxed text-white/40">
+              Temperature, rain risk, precipitation, and wind are external forecast signals. They can affect uncertainty but do not create driver-specific weather claims.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Predictive Outlook Methodology */}
+      <section className="border border-white/10 bg-graphite-light/30">
+        <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.02] px-4 py-3">
+          <Gauge className="h-4 w-4 text-cyan" />
+          <p className="text-sm uppercase tracking-[0.18em] text-white/70">
+            Predictive Outlook Methodology
+          </p>
+        </div>
+
+        <div className="p-4 md:p-5">
+          <p className="max-w-4xl text-[11px] leading-relaxed text-white/50">
+            Predictive Outlook is a transparent, evidence-weighted portfolio model for the next indexed Grand Prix. It does not replace verified results, official timing, or expert race operations. The panel makes its evidence coverage, uncertainty, and external weather context visible to the user.
+          </p>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-sm border border-green-400/25 bg-green-400/[0.04] p-3">
+              <p className="text-[9px] uppercase tracking-[0.18em] text-green-400">
+                Verified Evidence Inputs
+              </p>
+              <ul className="mt-3 space-y-1 text-[11px] leading-relaxed text-white/70">
+                <li>• Recent classified-race form</li>
+                <li>• Average race pace / finishing evidence</li>
+                <li>• Indexed qualifying performance</li>
+                <li>• Team performance and points trend</li>
+                <li>• Completion rate and DNF reliability signal</li>
+              </ul>
+            </div>
+
+            <div className="rounded-sm border border-cyan/25 bg-cyan/[0.03] p-3">
+              <p className="text-[9px] uppercase tracking-[0.18em] text-cyan">
+                Model Output Discipline
+              </p>
+              <ul className="mt-3 space-y-1 text-[11px] leading-relaxed text-white/70">
+                <li>• Displays a ranked Top 5 outlook only</li>
+                <li>• Uses probability-style estimates, not facts</li>
+                <li>• Shows confidence and completed-race evidence count</li>
+                <li>• Recalculates when the next indexed Grand Prix changes</li>
+                <li>• Keeps verified records separate from model output</li>
+              </ul>
+            </div>
+
+            <div className="rounded-sm border border-amber/25 bg-amber/[0.03] p-3">
+              <p className="text-[9px] uppercase tracking-[0.18em] text-amber">
+                Weather Context &amp; Uncertainty
+              </p>
+              <ul className="mt-3 space-y-1 text-[11px] leading-relaxed text-white/70">
+                <li>• Uses external forecast context when available</li>
+                <li>• Displays temperature, rain risk, precipitation, and wind</li>
+                <li>• Raises uncertainty during volatile conditions</li>
+                <li>• Does not infer driver-specific wet-weather advantage</li>
+                <li>• Shows unavailable when outside the provider window</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-start gap-3 rounded-sm border border-crimson/25 bg-crimson/[0.04] px-4 py-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-crimson" />
+            <p className="text-[11px] leading-relaxed text-white/70">
+              Predictive Outlook is not official timing, betting advice, financial advice, a strategy recommendation, a trained machine-learning system, or a guaranteed race outcome. Limited archive coverage and volatile weather conditions reduce confidence by design.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -434,7 +524,7 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
                 No Fabricated Layers
               </p>
               <p className="mt-2 text-[11px] leading-relaxed text-white/70">
-                Tyre state, weather, pit call predictions, strategy recommendations, and sector deltas are not displayed. Verified data only.
+                Unverified tyre state, pit-call forecasts, strategy recommendations, and sector deltas are not displayed. Historical weather observations appear only when available in the verified replay dataset.
               </p>
             </div>
           </div>
@@ -565,6 +655,18 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
               <p className="mt-1 text-[10px] text-white/40">Historical session data only</p>
             </div>
 
+            <div className="rounded-sm border border-cyan/25 bg-cyan/[0.03] p-3">
+              <p className="text-[8px] uppercase tracking-[0.18em] text-white/30">Forecast Engine</p>
+              <p className="mt-2 text-sm font-bold text-white">Evidence-Weighted Outlook</p>
+              <p className="mt-1 text-[10px] text-white/40">Transparent Top 5 portfolio estimates</p>
+            </div>
+
+            <div className="rounded-sm border border-cyan/25 bg-cyan/[0.03] p-3">
+              <p className="text-[8px] uppercase tracking-[0.18em] text-white/30">Weather Context</p>
+              <p className="mt-2 text-sm font-bold text-white">External Forecast Signal</p>
+              <p className="mt-1 text-[10px] text-white/40">Provider-window dependent / uncertainty only</p>
+            </div>
+
             <div className="rounded-sm border border-white/10 bg-black/10 p-3">
               <p className="text-[8px] uppercase tracking-[0.18em] text-white/30">Build State</p>
               <p className="mt-2 text-sm font-bold text-white">Portfolio Demonstration</p>
@@ -585,7 +687,7 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
       {/* Footer integrity notice */}
       <div className="border-t border-white/5 py-4 text-center">
         <p className="text-[9px] uppercase tracking-[0.16em] text-white/25">
-          APEX 26 MODEL TRUST CONSOLE · VERIFIED INPUTS ONLY · NO PREDICTIONS OR FABRICATED DATA
+          APEX 26 MODEL TRUST CONSOLE · VERIFIED INPUTS · EXPLICIT MODEL ESTIMATES · NO FABRICATED DATA
         </p>
       </div>
     </div>
