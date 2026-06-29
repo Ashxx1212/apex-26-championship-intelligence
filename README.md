@@ -2,7 +2,7 @@
 **Live Demo:** https://apex-26-championship-intelligence.vercel.app/
 A cinematic motorsport intelligence portfolio system built with **React, TypeScript, Vite, and OpenF1-derived public data**.
 
-APEX 26 turns verified championship, event, driver, and constructor information into a connected race-operations interface. It combines a Command Centre, Driver Intelligence dossiers, Constructor Intelligence, Circuit Matrix, transparent Scenario Lab, historical replay capability, local caching, archive recovery, and explicit data-integrity controls.
+APEX 26 turns verified championship, event, driver, constructor, weather, and historical-session information into a connected race-operations interface. It combines a Command Centre, Driver Intelligence dossiers, Constructor Intelligence, Circuit Matrix, transparent Scenario Lab, historical replay capability, Predictive Outlook, local caching, archive recovery, and explicit data-integrity controls.
 
 > **Portfolio project:** APEX 26 is an unofficial motorsport analytics demonstration. It is not affiliated with Formula 1, the FIA, any racing team, driver, or commercial rights holder.
 
@@ -17,6 +17,7 @@ APEX 26 turns verified championship, event, driver, and constructor information 
 * **Circuit Matrix** for season event navigation, verified race-result state, event readiness, and Scenario Lab routing.
 * **Scenario Lab** with a transparent Title Path Index based on current points and verified historical evidence—not title-win probability or betting advice.
 * **Session Intelligence Replay** for verified historical race review, replay event logs, timing order, race-control events, stint and weather observations when supported by verified historical data.
+* **Predictive Outlook** for the next indexed Grand Prix, combining verified completed-race evidence, transparent Top 5 projected-winner estimates, model confidence, evidence coverage, reliability/form inputs, and external weather context when available.
 * **Model Trust Console** documenting architecture, source policy, archive rules, metric definitions, replay integrity, scenario guardrails, and build record.
 * **Data Integrity Protocol** with local cache awareness, partial archive status, missing-round recovery, rate-limit handling, and no fabricated data.
 
@@ -117,6 +118,21 @@ Capabilities include:
 * Explicit distinction between replay data and live timing
 
 ---
+### Predictive Outlook
+
+An evidence-weighted race-estimation panel for the next indexed Grand Prix.
+
+Capabilities include:
+
+* Top 5 projected race-winner outlook
+* Transparent probability-style model estimates
+* Model confidence and completed-race evidence coverage
+* Recent form, race pace, qualifying, team-performance, and reliability inputs
+* Weather context including temperature, rain risk, precipitation, and wind when the event falls inside the supported forecast window
+* Automatic event recalculation when the next upcoming Grand Prix changes
+* Explicit distinction between verified historical evidence, external weather signals, and model-estimated outcomes
+
+Predictive Outlook is a portfolio-model feature. It does not present projections as official timing, betting advice, financial advice, guarantees, or driver-specific wet-weather performance claims.
 
 ## Data Integrity Principles
 
@@ -125,8 +141,10 @@ APEX follows strict data-discipline rules:
 1. **Verified inputs only**
    Championship standings, session metadata, driver data, and race records are sourced from OpenF1-derived public data or a previously verified local cache.
 
-2. **No fabricated data**
-   Missing results, unavailable metrics, unindexed rounds, tyre state, weather, timing, strategy calls, and race outcomes are never invented.
+2. **No fabricated verified data**
+   Missing results, unavailable metrics, unindexed rounds, tyre state, weather observations, timing, and strategy calls are never presented as verified facts.
+
+   Predictive Outlook outputs are clearly labelled as evidence-weighted model estimates. They are separated from verified historical records and never presented as guaranteed race outcomes.
 
 3. **Partial archive is visible**
    Archive coverage is displayed across the system. Metrics derived from indexed race records are clearly labelled as partial when completed rounds remain pending.
@@ -137,7 +155,10 @@ APEX follows strict data-discipline rules:
 5. **Scenario Lab is evidence-based**
    The Title Path Index ranks current contender evidence; it is not a prediction engine or probability model.
 
-6. **Source restrictions are handled safely**
+6. **Forecast and weather signals are labelled separately**
+   Weather information is treated as external forecast context when available within the provider’s supported time window. Model estimates show evidence coverage and confidence so uncertainty remains visible.
+
+7. **Source restrictions are handled safely**
    During provider restrictions, rate limits, or unavailable access, APEX preserves available verified cache data and pauses unsupported refresh behaviour.
 
 ---
@@ -214,6 +235,8 @@ The application uses controlled request behaviour to reduce avoidable source pre
 * **OpenF1 public API**
 * **LocalStorage-based versioned caching**
 * **Git and GitHub**
+* **External weather forecast service**
+* **Evidence-weighted predictive modelling**
 
 ---
 
@@ -238,6 +261,8 @@ src/
 │   ├── notes/                   # Model Trust Console
 │   ├── scenarioLab/             # Transparent contender model
 │   └── teamPerformance/         # Constructor intelligence
+│   ├── features/
+│   ├── predictiveOutlook/       # Evidence-weighted race estimation
 │
 ├── hooks/
 │   ├── useChampionshipData.ts
@@ -326,7 +351,9 @@ No private API key is required for the public-source workflow.
 * Public source access may be temporarily restricted during active sessions.
 * Analytics archive coverage can be partial while historical rounds are being indexed.
 * Missing historical records remain pending instead of being estimated.
-* Forecast calibration remains deliberately cautious until sufficient verified evidence exists.
+* * Predictive Outlook is an explainable, evidence-weighted portfolio model, not a trained machine-learning system.
+* Forecast estimates remain deliberately cautious when completed-race evidence is limited or weather conditions increase uncertainty.
+* External weather signals are available only when the upcoming event falls inside the weather provider’s supported forecast window.
 * The application does not provide betting, financial, race-strategy, or title-win prediction advice.
 
 ---
