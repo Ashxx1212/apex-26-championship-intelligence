@@ -12,7 +12,7 @@ const bootLines = [
 ];
 
 const NARRATION_TEXT = 'APEX intelligence core online. 2026 championship data link established. Forecast engine standing by.';
-const FALLBACK_TIMEOUT_MS = 9000;
+const FALLBACK_TIMEOUT_MS = 15000;
 
 // Preferred voices in order of preference
 const PREFERRED_VOICE_PATTERNS = [
@@ -30,6 +30,8 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
 
   const hasTransitionedRef = useRef(false);
   const fallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const voiceLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const narrationStartedRef = useRef(false);
   const voicesLoadedRef = useRef(false);
 
   const transitionIntoCommandCentre = useCallback(() => {
@@ -66,74 +68,87 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
   }, []);
 
   const handleInitialize = useCallback(() => {
-    setIsInitializing(true);
+  // Prevent double-clicks, delayed voice events, or browser callbacks
+  // from starting the narration more than once.
+  if (narrationStartedRef.current || hasTransitionedRef.current) return;
 
-    const speakNarration = () => {
-      if (!window.speechSynthesis) {
-        transitionIntoCommandCentre();
-        return;
-      }
+  setIsInitializing(true);
 
-      // Cancel any existing speech
-      window.speechSynthesis.cancel();
+  const speakNarration = () => {
+    // This is the important protection against duplicate speech calls.
+    if (narrationStartedRef.current || hasTransitionedRef.current) return;
 
-      const utterance = new SpeechSynthesisUtterance(NARRATION_TEXT);
-      utterance.rate = 0.88;
-      utterance.pitch = 0.72;
+    narrationStartedRef.current = true;
 
-      // Set the best available voice
-      const bestVoice = getBestVoice();
-      if (bestVoice) {
-        utterance.voice = bestVoice;
-      }
+    if (voiceLoadTimeoutRef.current) {
+      clearTimeout(voiceLoadTimeoutRef.current);
+      voiceLoadTimeoutRef.current = null;
+    }
 
-      utterance.onstart = () => {
-        setVoiceLinkActive(true);
-      };
+    if (!window.speechSynthesis) {
+      transitionIntoCommandCentre();
+      return;
+    }
 
-      utterance.onend = () => {
-        transitionIntoCommandCentre();
-      };
+    window.speechSynthesis.onvoiceschanged = null;
+    window.speechSynthesis.cancel();
 
-      utterance.onerror = () => {
-        transitionIntoCommandCentre();
-      };
+    const utterance = new SpeechSynthesisUtterance(NARRATION_TEXT);
+    utterance.rate = 0.88;
+    utterance.pitch = 0.72;
 
-      // Start safety fallback timeout
-      fallbackTimeoutRef.current = setTimeout(() => {
-        transitionIntoCommandCentre();
-      }, FALLBACK_TIMEOUT_MS);
+    const bestVoice = getBestVoice();
+    if (bestVoice) {
+      utterance.voice = bestVoice;
+    }
 
-      // Speak
-      try {
-        window.speechSynthesis.speak(utterance);
-      } catch {
-        transitionIntoCommandCentre();
-      }
+    utterance.onstart = () => {
+      setVoiceLinkActive(true);
     };
 
-    // Voices may need to load asynchronously in some browsers
-    if (voicesLoadedRef.current || window.speechSynthesis.getVoices().length > 0) {
-      voicesLoadedRef.current = true;
-      speakNarration();
-    } else {
-      // Wait for voices to load
-      const handleVoicesChanged = () => {
-        voicesLoadedRef.current = true;
-        window.speechSynthesis.onvoiceschanged = null;
-        speakNarration();
-      };
+    utterance.onend = () => {
+      transitionIntoCommandCentre();
+    };
 
-      window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
+    utterance.onerror = () => {
+      transitionIntoCommandCentre();
+    };
 
-      // Fallback if voices never load
-      fallbackTimeoutRef.current = setTimeout(() => {
-        if (!hasTransitionedRef.current) {
-          speakNarration();
-        }
-      }, 1000);
+    fallbackTimeoutRef.current = setTimeout(() => {
+      transitionIntoCommandCentre();
+    }, FALLBACK_TIMEOUT_MS);
+
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      transitionIntoCommandCentre();
     }
-  }, [getBestVoice, transitionIntoCommandCentre]);
+  };
+
+  if (!window.speechSynthesis) {
+    transitionIntoCommandCentre();
+    return;
+  }
+
+  const voices = window.speechSynthesis.getVoices();
+
+  if (voices.length > 0) {
+    voicesLoadedRef.current = true;
+    speakNarration();
+    return;
+  }
+
+  // Set this first, before registering the voice callback.
+  // The narration lock prevents either callback from speaking twice.
+  voiceLoadTimeoutRef.current = setTimeout(() => {
+    speakNarration();
+  }, 1000);
+
+  window.speechSynthesis.onvoiceschanged = () => {
+    voicesLoadedRef.current = true;
+    speakNarration();
+  };
+}, [getBestVoice, transitionIntoCommandCentre]);
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -166,6 +181,9 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
       if (fallbackTimeoutRef.current) {
         clearTimeout(fallbackTimeoutRef.current);
       }
+      if (voiceLoadTimeoutRef.current) {
+  clearTimeout(voiceLoadTimeoutRef.current);
+}
     };
   }, []);
 
