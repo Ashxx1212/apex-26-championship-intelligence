@@ -342,8 +342,6 @@ export function TeamPerformancePage({
 
   // Calculate team metrics from verified data only
   const teamMetrics: TeamMetrics = useMemo(() => {
-    const { coveragePercent, missing } = archiveCoverage;
-
     // Average finish comparison
     let avgFinishComparison: string | null = null;
     if (driverContributions.length === 2) {
