@@ -582,6 +582,18 @@ export function CommandCentrePanel({
   ]);
 
   const raceWeekends = data?.raceWeekends ?? [];
+  const replayArchive = useMemo(
+  () =>
+    raceWeekends
+      .filter((weekend) => weekend.status === 'completed')
+      .map((weekend) => ({
+        meetingKey: weekend.meetingKey,
+        meetingName: weekend.meetingName,
+        round: weekend.round,
+      }))
+      .sort((a, b) => b.round - a.round),
+  [raceWeekends]
+);
 
   const focusIndex = raceWeekends.findIndex(
     (weekend) => weekend.meetingKey === focusMeeting?.meeting_key
@@ -1338,7 +1350,7 @@ export function CommandCentrePanel({
         </div>
       </section>
       <SessionReplayDock
-  meeting={latestMeeting}
+  meetings={replayArchive}
   activeMeeting={currentMeeting}
   onDriverSelect={onDriverSelect}
   onTeamSelect={onTeamSelect}

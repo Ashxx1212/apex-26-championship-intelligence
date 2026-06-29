@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -21,8 +21,14 @@ import {
 } from '../services/openF1Client';
 import { useSessionReplay, type ReplaySpeed } from '../hooks/useSessionReplay';
 
+interface ReplayMeetingOption {
+  meetingKey: number;
+  meetingName: string;
+  round: number;
+}
+
 interface SessionReplayDockProps {
-  meeting: OpenF1Meeting | null;
+  meetings: ReplayMeetingOption[];
   activeMeeting?: OpenF1Meeting | null;
   onDriverSelect?: (driverNumber: number) => void;
   onTeamSelect?: (teamName: string) => void;
@@ -72,7 +78,7 @@ function timingTone(driver: ReplayDriverState): string {
 }
 
 export function SessionReplayDock({
-  meeting,
+  meetings,
   activeMeeting = null,
   onDriverSelect,
   onTeamSelect,
@@ -82,6 +88,40 @@ export function SessionReplayDock({
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [accessPaused, setAccessPaused] = useState(false);
+  const [selectedMeetingKey, setSelectedMeetingKey] = useState<number | null>(
+    null
+  );
+
+  useEffect(() => {
+    setSelectedMeetingKey((currentKey) => {
+      const currentSelectionStillExists = meetings.some(
+        (item) => item.meetingKey === currentKey
+      );
+
+      return currentSelectionStillExists
+        ? currentKey
+        : meetings[0]?.meetingKey ?? null;
+    });
+  }, [meetings]);
+
+  const meeting = useMemo(() => {
+    const selected = meetings.find(
+      (item) => item.meetingKey === selectedMeetingKey
+    );
+
+    return selected
+      ? {
+          meeting_key: selected.meetingKey,
+          meeting_name: selected.meetingName,
+        }
+      : null;
+  }, [meetings, selectedMeetingKey]);
+
+  useEffect(() => {
+    setDataset(null);
+    setErrorMessage(null);
+    setAccessPaused(false);
+  }, [meeting?.meeting_key]);
 
   const replay = useSessionReplay(dataset);
 
@@ -133,7 +173,9 @@ export function SessionReplayDock({
     setAccessPaused(false);
 
     try {
-      const nextDataset = await sessionReplayService.loadReplayForMeeting(meeting);
+      const nextDataset = await sessionReplayService.loadReplayForMeeting(
+        meeting.meeting_key
+      );
       setDataset(nextDataset);
     } catch (error) {
       const networkBlockedDuringActiveWeekend =
@@ -178,9 +220,36 @@ export function SessionReplayDock({
             </div>
           </div>
 
-          <span className={`text-[9px] font-semibold tracking-[0.15em] ${eventStatus.tone}`}>
-            {eventStatus.label}
-          </span>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <label
+              htmlFor="replay-archive"
+              className="text-[8px] tracking-[0.13em] text-white/35 uppercase"
+            >
+              Replay Archive
+            </label>
+
+            <select
+              id="replay-archive"
+              value={selectedMeetingKey ?? ''}
+              onChange={(event) => setSelectedMeetingKey(Number(event.target.value))}
+              disabled={loading || meetings.length === 0}
+              className="border border-cyan/20 bg-black/60 px-3 py-2 text-[9px] font-semibold tracking-[0.08em] text-white outline-none transition-colors hover:border-cyan/40 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {meetings.length === 0 ? (
+                <option value="">NO COMPLETED REPLAYS AVAILABLE</option>
+              ) : (
+                meetings.map((option) => (
+                  <option key={option.meetingKey} value={option.meetingKey}>
+                    R{String(option.round).padStart(2, '0')} · {option.meetingName}
+                  </option>
+                ))
+              )}
+            </select>
+
+            <span className={`text-[9px] font-semibold tracking-[0.15em] ${eventStatus.tone}`}>
+              {eventStatus.label}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -240,7 +309,7 @@ export function SessionReplayDock({
                 ? 'LOADING VERIFIED SESSION'
                 : accessPaused
                   ? 'RETRY REPLAY ACCESS'
-                  : 'LOAD RACE REPLAY'}
+                  : 'LOAD SELECTED REPLAY'}
             </button>
           </div>
 

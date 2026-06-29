@@ -1,5 +1,5 @@
 import { openF1Client, OpenF1Error } from './openF1Client';
-import type { OpenF1Meeting, OpenF1Session } from '../types/f1';
+import type { OpenF1Session } from '../types/f1';
 import type {
   OpenF1Interval,
   OpenF1Lap,
@@ -187,8 +187,8 @@ export const sessionReplayService = {
     return race;
   },
 
-  async loadReplayForMeeting(meeting: OpenF1Meeting): Promise<SessionReplayDataset> {
-    const session = await this.getRaceSession(meeting.meeting_key);
+  async loadReplayForMeeting(meetingKey: number): Promise<SessionReplayDataset> {
+  const session = await this.getRaceSession(meetingKey);
 
     const [
       drivers,
