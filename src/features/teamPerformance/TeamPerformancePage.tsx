@@ -5,6 +5,7 @@ import {
   BarChart3,
   ChevronRight,
   Flag,
+  Gauge,
   ShieldCheck,
   Sparkles,
   Target,
