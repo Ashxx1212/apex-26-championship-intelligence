@@ -330,14 +330,19 @@ export function TeamPerformancePage({
     });
   }, [data, selectedTeam, raceResults]);
 
-  // Calculate team metrics from verified data only
-  const teamMetrics: TeamMetrics = useMemo(() => {
-    const coverage = data?.analyticsCoverage;
-    const total = coverage?.totalCompletedRaceSessions ?? 0;
-    const indexed = coverage?.indexedRaceResults ?? 0;
-
+  // Archive coverage metrics - computed directly from data.analyticsCoverage
+  // This must be derived fresh from the source to match other panels
+  const archiveCoverage = useMemo(() => {
+    const indexed = data?.analyticsCoverage?.indexedRaceResults ?? 0;
+    const total = data?.analyticsCoverage?.totalCompletedRaceSessions ?? 0;
     const coveragePercent = total > 0 ? Math.round((indexed / total) * 100) : 0;
     const missing = Math.max(0, total - indexed);
+    return { indexed, total, coveragePercent, missing };
+  }, [data?.analyticsCoverage?.indexedRaceResults, data?.analyticsCoverage?.totalCompletedRaceSessions]);
+
+  // Calculate team metrics from verified data only
+  const teamMetrics: TeamMetrics = useMemo(() => {
+    const { coveragePercent, missing } = archiveCoverage;
 
     // Average finish comparison
     let avgFinishComparison: string | null = null;
@@ -408,10 +413,10 @@ export function TeamPerformancePage({
       reliabilityRate,
       teammateAdvantage,
       latestVerifiedImpact,
-      archiveCoveragePercent: coveragePercent,
-      missingRounds: missing,
+      archiveCoveragePercent: archiveCoverage.coveragePercent,
+      missingRounds: archiveCoverage.missing,
     };
-  }, [data, driverContributions, raceResults, selectedTeam]);
+  }, [archiveCoverage, driverContributions, raceResults, selectedTeam]);
 
   // Constructor battle position
   const constructorBattle = useMemo(() => {
@@ -522,11 +527,13 @@ export function TeamPerformancePage({
                   </p>
                 </div>
                 <p className="mt-2 text-[11px] font-bold text-white">
-                  {teamMetrics.archiveCoveragePercent}% VERIFIED
+                  {archiveCoverage.total > 0
+                    ? `${archiveCoverage.indexed}/${archiveCoverage.total} VERIFIED`
+                    : 'AWAITING COMPLETED-RACE INGESTION'}
                 </p>
-                {teamMetrics.missingRounds > 0 && (
+                {archiveCoverage.missing > 0 && (
                   <p className="mt-1 text-[9px] text-amber/70">
-                    {teamMetrics.missingRounds} ROUNDS PENDING
+                    {archiveCoverage.missing} ROUNDS PENDING
                   </p>
                 )}
               </div>
@@ -562,7 +569,11 @@ export function TeamPerformancePage({
           {/* Data integrity notice */}
           <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-white/10 pt-4">
             <span className="text-[9px] uppercase tracking-[0.13em] text-amber">
-              PARTIAL ARCHIVE · VERIFIED INPUTS ONLY
+              {archiveCoverage.total > 0 && archiveCoverage.missing > 0
+                ? `PARTIAL ARCHIVE · ${archiveCoverage.coveragePercent}% VERIFIED`
+                : archiveCoverage.total > 0
+                  ? 'FULL ARCHIVE · ALL RACES INDEXED'
+                  : 'NO COMPLETED RACES INDEXED'}
             </span>
             <span className="text-[9px] uppercase tracking-[0.13em] text-white/30">
               NO PREDICTIONS OR FABRICATED METRICS
@@ -741,12 +752,16 @@ export function TeamPerformancePage({
                   Archive Coverage
                 </p>
                 <p className="mt-2 text-sm font-bold text-white">
-                  {teamMetrics.archiveCoveragePercent}%
+                  {archiveCoverage.total > 0
+                    ? `${archiveCoverage.coveragePercent}%`
+                    : '0%'}
                 </p>
                 <p className="mt-1 text-[9px] text-amber/70">
-                  {teamMetrics.missingRounds > 0
-                    ? `${teamMetrics.missingRounds} rounds pending indexing`
-                    : 'All completed rounds indexed'}
+                  {archiveCoverage.total > 0
+                    ? archiveCoverage.missing > 0
+                      ? `${archiveCoverage.missing} rounds pending indexing`
+                      : 'All completed rounds indexed'
+                    : 'Awaiting completed-race ingestion'}
                 </p>
               </div>
 
@@ -833,15 +848,19 @@ export function TeamPerformancePage({
                 </p>
               </div>
 
-              {/* Archive reliability */}
+              {/* Archive gap */}
               <div className="rounded-sm border border-amber/20 bg-amber/[0.03] p-3">
                 <p className="text-[8px] uppercase tracking-[0.18em] text-white/30">
                   Archive Gap
                 </p>
                 <div className="mt-2">
-                  {teamMetrics.missingRounds > 0 ? (
+                  {archiveCoverage.total === 0 ? (
+                    <p className="text-[11px] text-white/40">
+                      NO COMPLETED RACES
+                    </p>
+                  ) : archiveCoverage.missing > 0 ? (
                     <p className="text-[11px] font-semibold text-amber">
-                      {teamMetrics.missingRounds} ROUNDS UNVERIFIED
+                      {archiveCoverage.missing} ROUNDS UNVERIFIED
                     </p>
                   ) : (
                     <p className="text-[11px] text-green-400">
@@ -850,7 +869,11 @@ export function TeamPerformancePage({
                   )}
                 </div>
                 <p className="mt-2 text-[9px] text-amber/70">
-                  {teamMetrics.missingRounds > 0 ? 'LOAD ANALYTICS ARCHIVE TO COMPLETE' : 'ARCHIVE COMPLETE'}
+                  {archiveCoverage.total === 0
+                    ? 'AWAITING COMPLETED-RACE INGESTION'
+                    : archiveCoverage.missing > 0
+                      ? 'LOAD ANALYTICS ARCHIVE TO COMPLETE'
+                      : 'ARCHIVE COMPLETE'}
                 </p>
               </div>
             </div>
