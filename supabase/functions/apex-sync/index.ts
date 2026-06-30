@@ -48,6 +48,7 @@ type OpenF1ChampionshipDriver = {
   session_key: number;
   position_current: number;
   points_current: number;
+  points_start: number;
 };
 
 type OpenF1ChampionshipTeam = {
@@ -58,12 +59,28 @@ type OpenF1ChampionshipTeam = {
   points_current: number;
 };
 
+type OpenF1SessionResult = {
+  dnf: boolean;
+  dns: boolean;
+  dsq: boolean;
+  driver_number: number;
+  meeting_key: number;
+  session_key: number;
+  position: number | null;
+  number_of_laps: number | null;
+  gap_to_leader: number | string | null;
+};
+
 function sleep(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function normaliseName(value: string) {
   return value.trim().toLowerCase();
+}
+
+function isPositivePosition(value: number | null | undefined) {
+  return typeof value === "number" && value > 0;
 }
 
 function getRetryDelayMilliseconds(response: Response, attempt: number) {
@@ -91,7 +108,7 @@ async function fetchJson<T>(
     if (response.ok) {
       const data = (await response.json()) as T;
 
-      // Keep sequential requests below OpenF1's public limit.
+      // Keep sequential requests below OpenF1's public rate limit.
       await sleep(750);
 
       return data;
@@ -134,8 +151,7 @@ async function fetchOptionalJson<T>(
 
     const responseText = await response.text();
 
-    // OpenF1 returns this when a valid optional dataset is not
-    // yet published for the requested completed race session.
+    // OpenF1 returns this when valid data has not yet been published.
     if (
       response.status === 404 &&
       responseText.toLowerCase().includes("no results found")
@@ -179,6 +195,29 @@ function getLatestCompletedRaceSession(sessions: OpenF1Session[]) {
   return completedRaceSessions[0] ?? null;
 }
 
+function getLatestCompletedQualifyingSession(
+  sessions: OpenF1Session[],
+  meetingKey: number,
+) {
+  const now = Date.now();
+
+  const completedQualifyingSessions = sessions
+    .filter(
+      (session) =>
+        session.meeting_key === meetingKey &&
+        session.session_name === "Qualifying" &&
+        session.date_end !== null &&
+        new Date(session.date_end).getTime() <= now,
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.date_end ?? 0).getTime() -
+        new Date(a.date_end ?? 0).getTime(),
+    );
+
+  return completedQualifyingSessions[0] ?? null;
+}
+
 function calculatePerformanceIndex(
   teamPoints: number,
   leaderPoints: number,
@@ -188,6 +227,38 @@ function calculatePerformanceIndex(
   }
 
   return Number(((teamPoints / leaderPoints) * 100).toFixed(2));
+}
+
+function calculateRacePoints(
+  standing: OpenF1ChampionshipDriver | undefined,
+) {
+  if (!standing) {
+    return 0;
+  }
+
+  const currentPoints = Number(standing.points_current ?? 0);
+  const startingPoints = Number(standing.points_start ?? currentPoints);
+
+  return Math.max(
+    0,
+    Number((currentPoints - startingPoints).toFixed(3)),
+  );
+}
+
+function getRaceStatus(result: OpenF1SessionResult) {
+  if (result.dsq) {
+    return "dsq";
+  }
+
+  if (result.dns) {
+    return "dns";
+  }
+
+  if (result.dnf) {
+    return "dnf";
+  }
+
+  return "finished";
 }
 
 export default {
@@ -267,6 +338,11 @@ export default {
         );
       }
 
+      const latestQualifyingSession = getLatestCompletedQualifyingSession(
+        sessions,
+        latestRaceSession.meeting_key,
+      );
+
       const openF1Drivers = await fetchJson<OpenF1Driver[]>(
         "drivers",
         `${OPENF1_BASE_URL}/drivers?session_key=${latestRaceSession.session_key}`,
@@ -284,7 +360,20 @@ export default {
           `${OPENF1_BASE_URL}/championship_teams?session_key=${latestRaceSession.session_key}`,
         );
 
-      // 2. Build unique constructor records from driver data.
+      const openF1RaceResults =
+        await fetchOptionalJson<OpenF1SessionResult[]>(
+          "race session_result",
+          `${OPENF1_BASE_URL}/session_result?session_key=${latestRaceSession.session_key}`,
+        );
+
+      const openF1QualifyingResults = latestQualifyingSession
+        ? await fetchOptionalJson<OpenF1SessionResult[]>(
+          "qualifying session_result",
+          `${OPENF1_BASE_URL}/session_result?session_key=${latestQualifyingSession.session_key}`,
+        )
+        : null;
+
+      // 2. Build unique constructors from driver data.
       const teamMap = new Map<
         string,
         {
@@ -329,8 +418,7 @@ export default {
         updated_at: syncTimestamp,
       }));
 
-      // 3. UPSERT instead of delete + insert.
-      // This preserves existing UUIDs used by standings and future race results.
+      // 3. Upsert core records to preserve their existing UUIDs.
       const { error: meetingsUpsertError } = await supabase
         .from("meetings")
         .upsert(meetingsToUpsert, {
@@ -399,7 +487,7 @@ export default {
 
       const { data: insertedDrivers, error: driversSelectError } = await supabase
         .from("drivers")
-        .select("id, driver_number")
+        .select("id, driver_number, current_team_id")
         .eq("season", SEASON);
 
       if (driversSelectError) {
@@ -415,8 +503,14 @@ export default {
         ]),
       );
 
-      // 4. Refresh current driver standings through UPSERT.
-      // Existing rows remain untouched if OpenF1 temporarily has no dataset.
+      const driverTeamIdByNumber = new Map(
+        (insertedDrivers ?? []).map((driver) => [
+          driver.driver_number,
+          driver.current_team_id,
+        ]),
+      );
+
+      // 4. Refresh driver standings.
       const driverStandingsToUpsert = (openF1DriverStandings ?? []).flatMap(
         (standing) => {
           const driverId = driverIdByNumber.get(standing.driver_number);
@@ -454,7 +548,7 @@ export default {
         }
       }
 
-      // 5. Refresh constructor standings through UPSERT.
+      // 5. Refresh constructor standings.
       const leaderTeamPoints = Math.max(
         ...(openF1TeamStandings ?? []).map(
           (standing) => standing.points_current,
@@ -508,6 +602,82 @@ export default {
         }
       }
 
+      // 6. Save the latest completed Grand Prix results.
+      const qualifyingResultByDriverNumber = new Map(
+        (openF1QualifyingResults ?? []).map((result) => [
+          result.driver_number,
+          result,
+        ]),
+      );
+
+      const championshipStandingByDriverNumber = new Map(
+        (openF1DriverStandings ?? []).map((standing) => [
+          standing.driver_number,
+          standing,
+        ]),
+      );
+
+      const raceResultsToUpsert = (openF1RaceResults ?? []).flatMap(
+        (raceResult) => {
+          const driverId = driverIdByNumber.get(raceResult.driver_number);
+
+          if (!driverId) {
+            return [];
+          }
+
+          const qualifyingResult = qualifyingResultByDriverNumber.get(
+            raceResult.driver_number,
+          );
+
+          const championshipStanding = championshipStandingByDriverNumber.get(
+            raceResult.driver_number,
+          );
+
+          return [
+            {
+              meeting_key: raceResult.meeting_key,
+              driver_id: driverId,
+              team_id: driverTeamIdByNumber.get(raceResult.driver_number) ?? null,
+              race_session_key: raceResult.session_key,
+              qualifying_session_key: latestQualifyingSession?.session_key ?? null,
+              race_position: isPositivePosition(raceResult.position)
+                ? raceResult.position
+                : null,
+              qualifying_position: isPositivePosition(qualifyingResult?.position)
+                ? qualifyingResult?.position
+                : null,
+              race_status: getRaceStatus(raceResult),
+              points: calculateRacePoints(championshipStanding),
+              laps_completed:
+                typeof raceResult.number_of_laps === "number"
+                  ? raceResult.number_of_laps
+                  : null,
+              gap_to_leader:
+                raceResult.gap_to_leader === null ||
+                raceResult.gap_to_leader === undefined
+                  ? null
+                  : String(raceResult.gap_to_leader),
+              source_verified_at: syncTimestamp,
+              updated_at: syncTimestamp,
+            },
+          ];
+        },
+      );
+
+      if (raceResultsToUpsert.length > 0) {
+        const { error: raceResultsUpsertError } = await supabase
+          .from("race_results")
+          .upsert(raceResultsToUpsert, {
+            onConflict: "meeting_key,driver_id",
+          });
+
+        if (raceResultsUpsertError) {
+          throw new Error(
+            `Race results upsert failed: ${raceResultsUpsertError.message}`,
+          );
+        }
+      }
+
       const driverStandingsStatus = openF1DriverStandings
         ? "SYNCED"
         : "NOT_YET_AVAILABLE_FROM_OPENF1";
@@ -516,12 +686,23 @@ export default {
         ? "SYNCED"
         : "NOT_YET_AVAILABLE_FROM_OPENF1";
 
+      const raceResultsStatus = openF1RaceResults
+        ? "SYNCED"
+        : "NOT_YET_AVAILABLE_FROM_OPENF1";
+
+      const qualifyingResultsStatus = latestQualifyingSession
+        ? openF1QualifyingResults
+          ? "SYNCED"
+          : "NOT_YET_AVAILABLE_FROM_OPENF1"
+        : "NO_QUALIFYING_SESSION_FOUND";
+
       const recordsUpserted =
         meetingsToUpsert.length +
         teamsToUpsert.length +
         driversToUpsert.length +
         driverStandingsToUpsert.length +
-        teamStandingsToUpsert.length;
+        teamStandingsToUpsert.length +
+        raceResultsToUpsert.length;
 
       const { error: syncRunSuccessUpdateError } = await supabase
         .from("sync_runs")
@@ -531,8 +712,10 @@ export default {
           records_upserted: recordsUpserted,
           details: {
             season: SEASON,
-            syncStrategy: "UPSERT_CORE_ENTITIES",
+            syncStrategy: "UPSERT_CORE_ENTITIES_AND_LATEST_RACE_RESULT",
             latestRaceSessionKey: latestRaceSession.session_key,
+            latestQualifyingSessionKey:
+              latestQualifyingSession?.session_key ?? null,
             meetingsSynced: meetingsToUpsert.length,
             teamsSynced: teamsToUpsert.length,
             driversSynced: driversToUpsert.length,
@@ -540,6 +723,9 @@ export default {
             driverStandingsStatus,
             teamStandingsSynced: teamStandingsToUpsert.length,
             teamStandingsStatus,
+            raceResultsSynced: raceResultsToUpsert.length,
+            raceResultsStatus,
+            qualifyingResultsStatus,
           },
         })
         .eq("id", syncRunId);
@@ -557,8 +743,9 @@ export default {
           function: "apex-sync",
           season: SEASON,
           source: "OpenF1",
-          syncStrategy: "UPSERT_CORE_ENTITIES",
+          syncStrategy: "UPSERT_CORE_ENTITIES_AND_LATEST_RACE_RESULT",
           latestRaceSessionKey: latestRaceSession.session_key,
+          latestQualifyingSessionKey: latestQualifyingSession?.session_key ?? null,
           meetingsSynced: meetingsToUpsert.length,
           teamsSynced: teamsToUpsert.length,
           driversSynced: driversToUpsert.length,
@@ -566,6 +753,9 @@ export default {
           driverStandingsStatus,
           teamStandingsSynced: teamStandingsToUpsert.length,
           teamStandingsStatus,
+          raceResultsSynced: raceResultsToUpsert.length,
+          raceResultsStatus,
+          qualifyingResultsStatus,
         },
         {
           status: 200,
