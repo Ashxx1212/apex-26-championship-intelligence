@@ -1,0 +1,4 @@
+project_id = "apex-26-championship-intelligence"
+
+[functions.apex-health]
+verify_jwt = false
