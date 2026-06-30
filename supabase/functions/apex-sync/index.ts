@@ -47,34 +47,135 @@ type OpenF1ChampionshipDriver = {
   points_current: number;
 };
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(`OpenF1 request failed: ${response.status} ${response.statusText}`);
-  }
-
-  return await response.json();
+function sleep(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function getLatestRaceSession(sessions: OpenF1Session[]) {
-  const raceSessions = sessions
-    .filter((session) => session.session_name === "Race" && session.date_end)
+function getRetryDelayMilliseconds(response: Response, attempt: number) {
+  const retryAfterHeader = response.headers.get("retry-after");
+  const retryAfterSeconds = retryAfterHeader
+    ? Number(retryAfterHeader)
+    : Number.NaN;
+
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+    return retryAfterSeconds * 1000;
+  }
+
+  return attempt * 5000;
+}
+
+async function fetchJson<T>(
+  endpointName: string,
+  url: string,
+): Promise<T> {
+  const maximumAttempts = 3;
+
+  for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+    const response = await fetch(url);
+
+    if (response.ok) {
+      const data = (await response.json()) as T;
+
+      // Keeps sequential OpenF1 requests comfortably below its rate limit.
+      await sleep(750);
+
+      return data;
+    }
+
+    if (response.status === 429 && attempt < maximumAttempts) {
+      await sleep(getRetryDelayMilliseconds(response, attempt));
+      continue;
+    }
+
+    const responseText = await response.text();
+
+    throw new Error(
+      `OpenF1 ${endpointName} request failed: ` +
+        `${response.status} ${response.statusText}. ` +
+        `URL: ${url}. ` +
+        `Response: ${responseText.slice(0, 300)}`,
+    );
+  }
+
+  throw new Error(`OpenF1 ${endpointName} request failed after retry attempts.`);
+}
+
+async function fetchOptionalJson<T>(
+  endpointName: string,
+  url: string,
+): Promise<T | null> {
+  const maximumAttempts = 3;
+
+  for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+    const response = await fetch(url);
+
+    if (response.ok) {
+      const data = (await response.json()) as T;
+
+      await sleep(750);
+
+      return data;
+    }
+
+    const responseText = await response.text();
+
+    // OpenF1 can return this while a valid optional dataset
+    // has not yet been published for a race session.
+    if (
+      response.status === 404 &&
+      responseText.toLowerCase().includes("no results found")
+    ) {
+      await sleep(750);
+      return null;
+    }
+
+    if (response.status === 429 && attempt < maximumAttempts) {
+      await sleep(getRetryDelayMilliseconds(response, attempt));
+      continue;
+    }
+
+    throw new Error(
+      `OpenF1 ${endpointName} request failed: ` +
+        `${response.status} ${response.statusText}. ` +
+        `URL: ${url}. ` +
+        `Response: ${responseText.slice(0, 300)}`,
+    );
+  }
+
+  throw new Error(`OpenF1 ${endpointName} request failed after retry attempts.`);
+}
+
+function getLatestCompletedRaceSession(sessions: OpenF1Session[]) {
+  const now = Date.now();
+
+  const completedRaceSessions = sessions
+    .filter(
+      (session) =>
+        session.session_name === "Race" &&
+        session.date_end !== null &&
+        new Date(session.date_end).getTime() <= now,
+    )
     .sort(
       (a, b) =>
         new Date(b.date_end ?? 0).getTime() -
         new Date(a.date_end ?? 0).getTime(),
     );
 
-  return raceSessions[0] ?? null;
+  return completedRaceSessions[0] ?? null;
 }
 
 export default {
   fetch: async (req: Request) => {
     if (req.method !== "POST") {
       return Response.json(
-        { ok: false, error: "Method not allowed. Use POST." },
-        { status: 405, headers: jsonHeaders },
+        {
+          ok: false,
+          error: "Method not allowed. Use POST.",
+        },
+        {
+          status: 405,
+          headers: jsonHeaders,
+        },
       );
     }
 
@@ -83,8 +184,14 @@ export default {
 
     if (!supabaseUrl || !serviceRoleKey) {
       return Response.json(
-        { ok: false, error: "Missing Supabase server environment variables." },
-        { status: 500, headers: jsonHeaders },
+        {
+          ok: false,
+          error: "Missing Supabase server environment variables.",
+        },
+        {
+          status: 500,
+          headers: jsonHeaders,
+        },
       );
     }
 
@@ -94,45 +201,68 @@ export default {
     try {
       const syncStartedAt = new Date().toISOString();
 
-      const { data: syncRun } = await supabase
+      const { data: syncRun, error: syncRunInsertError } = await supabase
         .from("sync_runs")
         .insert({
-          sync_type: "FULL_SYNC",
+          sync_type: "snapshot",
           source_name: "OpenF1",
-          run_status: "RUNNING",
+          run_status: "running",
           started_at: syncStartedAt,
         })
         .select("id")
         .single();
 
-      syncRunId = syncRun?.id ?? null;
+      if (syncRunInsertError || !syncRun) {
+        throw new Error(
+          `Sync audit insert failed: ${
+            syncRunInsertError?.message ?? "No audit row returned."
+          }`,
+        );
+      }
+
+      syncRunId = syncRun.id;
 
       const meetings = await fetchJson<OpenF1Meeting[]>(
+        "meetings",
         `${OPENF1_BASE_URL}/meetings?year=${SEASON}`,
       );
 
       const sessions = await fetchJson<OpenF1Session[]>(
+        "sessions",
         `${OPENF1_BASE_URL}/sessions?year=${SEASON}`,
       );
 
-      const latestRaceSession = getLatestRaceSession(sessions);
+      const latestRaceSession = getLatestCompletedRaceSession(sessions);
 
       if (!latestRaceSession) {
-        throw new Error("No completed race session found for season.");
+        throw new Error(
+          `No completed Race session found for the ${SEASON} season.`,
+        );
       }
 
       const openF1Drivers = await fetchJson<OpenF1Driver[]>(
+        "drivers",
         `${OPENF1_BASE_URL}/drivers?session_key=${latestRaceSession.session_key}`,
       );
 
-      const openF1DriverStandings = await fetchJson<OpenF1ChampionshipDriver[]>(
-  `${OPENF1_BASE_URL}/championship_drivers?session_key=${latestRaceSession.session_key}`,
-);
+      const openF1DriverStandings =
+        await fetchOptionalJson<OpenF1ChampionshipDriver[]>(
+          "championship_drivers",
+          `${OPENF1_BASE_URL}/championship_drivers?session_key=${latestRaceSession.session_key}`,
+        );
 
-      const teamMap = new Map<string, { team_name: string; team_colour: string | null }>();
+      const teamMap = new Map<
+        string,
+        {
+          team_name: string;
+          team_colour: string | null;
+        }
+      >();
 
       for (const driver of openF1Drivers) {
-        if (!driver.team_name) continue;
+        if (!driver.team_name) {
+          continue;
+        }
 
         teamMap.set(driver.team_name, {
           team_name: driver.team_name,
@@ -160,17 +290,55 @@ export default {
         team_colour: team.team_colour,
       }));
 
-      await supabase.from("driver_standings").delete().eq("season", SEASON);
-      await supabase.from("drivers").delete().eq("season", SEASON);
-      await supabase.from("teams").delete().eq("season", SEASON);
-      await supabase.from("meetings").delete().eq("season", SEASON);
+      // Delete child rows before parent rows because of UUID foreign keys.
+      const { error: driverStandingsDeleteError } = await supabase
+        .from("driver_standings")
+        .delete()
+        .eq("season", SEASON);
+
+      if (driverStandingsDeleteError) {
+        throw new Error(
+          `Driver standings delete failed: ${driverStandingsDeleteError.message}`,
+        );
+      }
+
+      const { error: driversDeleteError } = await supabase
+        .from("drivers")
+        .delete()
+        .eq("season", SEASON);
+
+      if (driversDeleteError) {
+        throw new Error(`Drivers delete failed: ${driversDeleteError.message}`);
+      }
+
+      const { error: teamsDeleteError } = await supabase
+        .from("teams")
+        .delete()
+        .eq("season", SEASON);
+
+      if (teamsDeleteError) {
+        throw new Error(`Teams delete failed: ${teamsDeleteError.message}`);
+      }
+
+      const { error: meetingsDeleteError } = await supabase
+        .from("meetings")
+        .delete()
+        .eq("season", SEASON);
+
+      if (meetingsDeleteError) {
+        throw new Error(
+          `Meetings delete failed: ${meetingsDeleteError.message}`,
+        );
+      }
 
       const { error: meetingsInsertError } = await supabase
         .from("meetings")
         .insert(meetingsToInsert);
 
       if (meetingsInsertError) {
-        throw new Error(`Meetings insert failed: ${meetingsInsertError.message}`);
+        throw new Error(
+          `Meetings insert failed: ${meetingsInsertError.message}`,
+        );
       }
 
       const { error: teamsInsertError } = await supabase
@@ -191,7 +359,7 @@ export default {
       }
 
       const teamIdByName = new Map(
-        insertedTeams?.map((team) => [team.team_name, team.id]) ?? [],
+        (insertedTeams ?? []).map((team) => [team.team_name, team.id]),
       );
 
       const driversToInsert = openF1Drivers.map((driver) => ({
@@ -214,7 +382,9 @@ export default {
         .insert(driversToInsert);
 
       if (driversInsertError) {
-        throw new Error(`Drivers insert failed: ${driversInsertError.message}`);
+        throw new Error(
+          `Drivers insert failed: ${driversInsertError.message}`,
+        );
       }
 
       const { data: insertedDrivers, error: driversSelectError } = await supabase
@@ -223,41 +393,58 @@ export default {
         .eq("season", SEASON);
 
       if (driversSelectError) {
-        throw new Error(`Drivers select failed: ${driversSelectError.message}`);
+        throw new Error(
+          `Drivers select failed: ${driversSelectError.message}`,
+        );
       }
 
       const driverIdByNumber = new Map(
-        insertedDrivers?.map((driver) => [driver.driver_number, driver.id]) ?? [],
+        (insertedDrivers ?? []).map((driver) => [
+          driver.driver_number,
+          driver.id,
+        ]),
       );
 
-      const driverStandingsToInsert = openF1DriverStandings
-        .map((standing) => {
+      const standingsSnapshotAt = new Date().toISOString();
+
+      const driverStandingsToInsert = (openF1DriverStandings ?? []).flatMap(
+        (standing) => {
           const driverId = driverIdByNumber.get(standing.driver_number);
 
-          if (!driverId) return null;
+          if (!driverId) {
+            return [];
+          }
 
-          return {
-            season: SEASON,
-            driver_id: driverId,
-            championship_position: standing.position_current,
-            points: standing.points_current,
-            wins: null,
-            gap_to_leader: null,
-            source_meeting_key: null,
-            snapshot_at: new Date().toISOString(),
-          };
-        })
-        .filter((standing) => standing !== null);
+          return [
+            {
+              season: SEASON,
+              driver_id: driverId,
+              championship_position: standing.position_current,
+              points: standing.points_current,
+              wins: null,
+              gap_to_leader: null,
+              source_meeting_key: null,
+              snapshot_at: standingsSnapshotAt,
+            },
+          ];
+        },
+      );
 
-      const { error: driverStandingsInsertError } = await supabase
-        .from("driver_standings")
-        .insert(driverStandingsToInsert);
+      if (driverStandingsToInsert.length > 0) {
+        const { error: driverStandingsInsertError } = await supabase
+          .from("driver_standings")
+          .insert(driverStandingsToInsert);
 
-      if (driverStandingsInsertError) {
-        throw new Error(
-          `Driver standings insert failed: ${driverStandingsInsertError.message}`,
-        );
+        if (driverStandingsInsertError) {
+          throw new Error(
+            `Driver standings insert failed: ${driverStandingsInsertError.message}`,
+          );
+        }
       }
+
+      const driverStandingsStatus = openF1DriverStandings
+        ? "SYNCED"
+        : "NOT_YET_AVAILABLE_FROM_OPENF1";
 
       const recordsUpserted =
         meetingsToInsert.length +
@@ -265,10 +452,10 @@ export default {
         driversToInsert.length +
         driverStandingsToInsert.length;
 
-      await supabase
+      const { error: syncRunSuccessUpdateError } = await supabase
         .from("sync_runs")
         .update({
-          run_status: "SUCCESS",
+          run_status: "success",
           finished_at: new Date().toISOString(),
           records_upserted: recordsUpserted,
           details: {
@@ -278,9 +465,16 @@ export default {
             teamsSynced: teamsToInsert.length,
             driversSynced: driversToInsert.length,
             driverStandingsSynced: driverStandingsToInsert.length,
+            driverStandingsStatus,
           },
         })
         .eq("id", syncRunId);
+
+      if (syncRunSuccessUpdateError) {
+        throw new Error(
+          `Sync audit success update failed: ${syncRunSuccessUpdateError.message}`,
+        );
+      }
 
       return Response.json(
         {
@@ -294,8 +488,12 @@ export default {
           teamsSynced: teamsToInsert.length,
           driversSynced: driversToInsert.length,
           driverStandingsSynced: driverStandingsToInsert.length,
+          driverStandingsStatus,
         },
-        { status: 200, headers: jsonHeaders },
+        {
+          status: 200,
+          headers: jsonHeaders,
+        },
       );
     } catch (error) {
       const errorMessage =
@@ -305,7 +503,7 @@ export default {
         await supabase
           .from("sync_runs")
           .update({
-            run_status: "FAILED",
+            run_status: "failed",
             finished_at: new Date().toISOString(),
             error_message: errorMessage,
           })
@@ -317,7 +515,10 @@ export default {
           ok: false,
           error: errorMessage,
         },
-        { status: 500, headers: jsonHeaders },
+        {
+          status: 500,
+          headers: jsonHeaders,
+        },
       );
     }
   },
