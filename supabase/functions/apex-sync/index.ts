@@ -14,14 +14,12 @@ type OpenF1Meeting = {
   meeting_name: string;
   meeting_official_name: string;
   location: string;
-  country_key: number;
   country_code: string;
   country_name: string;
   circuit_key: number;
   circuit_short_name: string;
   date_start: string;
   date_end: string;
-  gmt_offset: string;
 };
 
 type OpenF1Session = {
@@ -86,20 +84,34 @@ export default {
 
     if (!supabaseUrl || !serviceRoleKey) {
       return Response.json(
-        {
-          ok: false,
-          error: "Missing Supabase server environment variables.",
-        },
+        { ok: false, error: "Missing Supabase server environment variables." },
         { status: 500, headers: jsonHeaders },
       );
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
+    let syncRunId: string | null = null;
 
     try {
+      const syncStartedAt = new Date().toISOString();
+
+      const { data: syncRun } = await supabase
+        .from("sync_runs")
+        .insert({
+          sync_type: "FULL_SYNC",
+          source_name: "OpenF1",
+          run_status: "RUNNING",
+          started_at: syncStartedAt,
+        })
+        .select("id")
+        .single();
+
+      syncRunId = syncRun?.id ?? null;
+
       const meetings = await fetchJson<OpenF1Meeting[]>(
-  `${OPENF1_BASE_URL}/meetings?year=${SEASON}`,
-);
+        `${OPENF1_BASE_URL}/meetings?year=${SEASON}`,
+      );
+
       const sessions = await fetchJson<OpenF1Session[]>(
         `${OPENF1_BASE_URL}/sessions?year=${SEASON}`,
       );
@@ -107,14 +119,7 @@ export default {
       const latestRaceSession = getLatestRaceSession(sessions);
 
       if (!latestRaceSession) {
-        return Response.json(
-          {
-            ok: false,
-            error: "No completed race session found for season.",
-            season: SEASON,
-          },
-          { status: 404, headers: jsonHeaders },
-        );
+        throw new Error("No completed race session found for season.");
       }
 
       const openF1Drivers = await fetchJson<OpenF1Driver[]>(
@@ -122,8 +127,8 @@ export default {
       );
 
       const openF1DriverStandings = await fetchJson<OpenF1ChampionshipDriver[]>(
-  `${OPENF1_BASE_URL}/championship?session_key=${latestRaceSession.session_key}`,
-);
+        `${OPENF1_BASE_URL}/championship?session_key=${latestRaceSession.session_key}`,
+      );
 
       const teamMap = new Map<string, { team_name: string; team_colour: string | null }>();
 
@@ -136,37 +141,38 @@ export default {
         });
       }
 
+      const meetingsToInsert = meetings.map((meeting) => ({
+        season: SEASON,
+        meeting_key: meeting.meeting_key,
+        meeting_name: meeting.meeting_name,
+        meeting_official_name: meeting.meeting_official_name,
+        location: meeting.location,
+        country_code: meeting.country_code,
+        country_name: meeting.country_name,
+        circuit_key: meeting.circuit_key,
+        circuit_short_name: meeting.circuit_short_name,
+        date_start: meeting.date_start,
+        date_end: meeting.date_end,
+      }));
+
       const teamsToInsert = Array.from(teamMap.values()).map((team) => ({
         season: SEASON,
         team_name: team.team_name,
         team_colour: team.team_colour,
       }));
 
+      await supabase.from("driver_standings").delete().eq("season", SEASON);
       await supabase.from("drivers").delete().eq("season", SEASON);
-await supabase.from("teams").delete().eq("season", SEASON);
-await supabase.from("meetings").delete().eq("season", SEASON);
+      await supabase.from("teams").delete().eq("season", SEASON);
+      await supabase.from("meetings").delete().eq("season", SEASON);
 
-const meetingsToInsert = meetings.map((meeting) => ({
-  season: SEASON,
-  meeting_key: meeting.meeting_key,
-  meeting_name: meeting.meeting_name,
-  meeting_official_name: meeting.meeting_official_name,
-  location: meeting.location,
-  country_code: meeting.country_code,
-  country_name: meeting.country_name,
-  circuit_key: meeting.circuit_key,
-  circuit_short_name: meeting.circuit_short_name,
-  date_start: meeting.date_start,
-  date_end: meeting.date_end,
-}));
+      const { error: meetingsInsertError } = await supabase
+        .from("meetings")
+        .insert(meetingsToInsert);
 
-const { error: meetingsInsertError } = await supabase
-  .from("meetings")
-  .insert(meetingsToInsert);
-
-if (meetingsInsertError) {
-  throw new Error(`Meetings insert failed: ${meetingsInsertError.message}`);
-}
+      if (meetingsInsertError) {
+        throw new Error(`Meetings insert failed: ${meetingsInsertError.message}`);
+      }
 
       const { error: teamsInsertError } = await supabase
         .from("teams")
@@ -211,51 +217,71 @@ if (meetingsInsertError) {
       if (driversInsertError) {
         throw new Error(`Drivers insert failed: ${driversInsertError.message}`);
       }
+
       const { data: insertedDrivers, error: driversSelectError } = await supabase
-  .from("drivers")
-  .select("id, driver_number")
-  .eq("season", SEASON);
+        .from("drivers")
+        .select("id, driver_number")
+        .eq("season", SEASON);
 
-if (driversSelectError) {
-  throw new Error(`Drivers select failed: ${driversSelectError.message}`);
-}
+      if (driversSelectError) {
+        throw new Error(`Drivers select failed: ${driversSelectError.message}`);
+      }
 
-const driverIdByNumber = new Map(
-  insertedDrivers?.map((driver) => [driver.driver_number, driver.id]) ?? [],
-);
+      const driverIdByNumber = new Map(
+        insertedDrivers?.map((driver) => [driver.driver_number, driver.id]) ?? [],
+      );
 
-await supabase.from("driver_standings").delete().eq("season", SEASON);
+      const driverStandingsToInsert = openF1DriverStandings
+        .map((standing) => {
+          const driverId = driverIdByNumber.get(standing.driver_number);
 
-const driverStandingsToInsert = openF1DriverStandings
-  .map((standing) => {
-    const driverId = driverIdByNumber.get(standing.driver_number);
+          if (!driverId) return null;
 
-    if (!driverId) {
-      return null;
-    }
+          return {
+            season: SEASON,
+            driver_id: driverId,
+            championship_position: standing.position_current,
+            points: standing.points_current,
+            wins: standing.wins_current,
+            gap_to_leader: null,
+            source_meeting_key: null,
+            snapshot_at: new Date().toISOString(),
+          };
+        })
+        .filter((standing) => standing !== null);
 
-    return {
-      season: SEASON,
-      driver_id: driverId,
-      championship_position: standing.position_current,
-      points: standing.points_current,
-      wins: standing.wins_current,
-      gap_to_leader: null,
-      source_meeting_key: null,
-      snapshot_at: new Date().toISOString(),
-    };
-  })
-  .filter((standing) => standing !== null);
+      const { error: driverStandingsInsertError } = await supabase
+        .from("driver_standings")
+        .insert(driverStandingsToInsert);
 
-const { error: driverStandingsInsertError } = await supabase
-  .from("driver_standings")
-  .insert(driverStandingsToInsert);
+      if (driverStandingsInsertError) {
+        throw new Error(
+          `Driver standings insert failed: ${driverStandingsInsertError.message}`,
+        );
+      }
 
-if (driverStandingsInsertError) {
-  throw new Error(
-    `Driver standings insert failed: ${driverStandingsInsertError.message}`,
-  );
-}
+      const recordsUpserted =
+        meetingsToInsert.length +
+        teamsToInsert.length +
+        driversToInsert.length +
+        driverStandingsToInsert.length;
+
+      await supabase
+        .from("sync_runs")
+        .update({
+          run_status: "SUCCESS",
+          finished_at: new Date().toISOString(),
+          records_upserted: recordsUpserted,
+          details: {
+            season: SEASON,
+            latestRaceSessionKey: latestRaceSession.session_key,
+            meetingsSynced: meetingsToInsert.length,
+            teamsSynced: teamsToInsert.length,
+            driversSynced: driversToInsert.length,
+            driverStandingsSynced: driverStandingsToInsert.length,
+          },
+        })
+        .eq("id", syncRunId);
 
       return Response.json(
         {
@@ -266,17 +292,31 @@ if (driverStandingsInsertError) {
           source: "OpenF1",
           latestRaceSessionKey: latestRaceSession.session_key,
           meetingsSynced: meetingsToInsert.length,
-teamsSynced: teamsToInsert.length,
-driversSynced: driversToInsert.length,
-driverStandingsSynced: driverStandingsToInsert.length,
+          teamsSynced: teamsToInsert.length,
+          driversSynced: driversToInsert.length,
+          driverStandingsSynced: driverStandingsToInsert.length,
         },
         { status: 200, headers: jsonHeaders },
       );
     } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown sync error";
+
+      if (syncRunId) {
+        await supabase
+          .from("sync_runs")
+          .update({
+            run_status: "FAILED",
+            finished_at: new Date().toISOString(),
+            error_message: errorMessage,
+          })
+          .eq("id", syncRunId);
+      }
+
       return Response.json(
         {
           ok: false,
-          error: error instanceof Error ? error.message : "Unknown sync error",
+          error: errorMessage,
         },
         { status: 500, headers: jsonHeaders },
       );
