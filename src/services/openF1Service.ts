@@ -12,8 +12,8 @@
 import { openF1Client, OpenF1Error } from './openF1Client';
 import { cacheService } from './cacheService';
 import { CACHE_CONFIG, OPENF1_CONFIG } from '../config/dataConfig';
-import { supabaseDriverService } from './supabaseDriverService';
 import { supabaseTeamService } from './supabaseTeamService';
+import { driverRepository } from '../repositories/driverRepository';
 import type {
   OpenF1Meeting,
   OpenF1Session,
@@ -307,14 +307,7 @@ async function fetchCoreData(
 
   onProgress?.('Reconciling driver standings...');
   // Fetch driver metadata
-  const supabaseDrivers = await supabaseDriverService.getDrivers();
-
-const drivers =
-  supabaseDrivers.length > 0
-    ? supabaseDrivers
-    : ((await openF1Client.getDrivers(
-        latestRaceSession.session_key
-      )) as OpenF1Driver[]);
+  const drivers = await driverRepository.getDrivers(latestRaceSession.session_key);
 
   // Fetch championship data
   const championshipDrivers = (await openF1Client.getChampionshipDrivers(
