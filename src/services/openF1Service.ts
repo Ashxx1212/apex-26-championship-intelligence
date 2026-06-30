@@ -16,6 +16,7 @@ import { driverRepository } from '../repositories/driverRepository';
 import { teamRepository } from '../repositories/teamRepository';
 import { meetingRepository } from '../repositories/meetingRepository';
 import { sessionRepository } from '../repositories/sessionRepository';
+import { driverStandingRepository } from '../repositories/driverStandingRepository';
 import type {
   OpenF1Meeting,
   OpenF1Session,
@@ -312,9 +313,9 @@ async function fetchCoreData(
   const drivers = await driverRepository.getDrivers(latestRaceSession.session_key);
 
   // Fetch championship data
-  const championshipDrivers = (await openF1Client.getChampionshipDrivers(
-    latestRaceSession.session_key
-  )) as OpenF1ChampionshipDriver[];
+  const championshipDrivers = await driverStandingRepository.getDriverStandings(
+  latestRaceSession.session_key
+);
 
  const championshipTeams = await teamRepository.getChampionshipTeams(
   latestRaceSession.session_key
