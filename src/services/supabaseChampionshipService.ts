@@ -111,10 +111,6 @@ function safeDate(value: string | null | undefined): string {
   return value ?? new Date(0).toISOString();
 }
 
-function normaliseTeamName(value: string) {
-  return value.trim().toLowerCase();
-}
-
 function toRaceStatus(value: string): RaceStatus {
   if (value === 'dnf' || value === 'dns' || value === 'dsq') {
     return value;
@@ -284,11 +280,18 @@ export const supabaseChampionshipService = {
 
       const now = Date.now();
 
-      const sortedMeetings = [...meetings].sort(
-        (left, right) =>
-          (getTimestamp(left.date_start) ?? 0) -
-          (getTimestamp(right.date_start) ?? 0),
-      );
+      const sortedMeetings = [...meetings]
+  .filter(
+    (meeting) =>
+      !meeting.meeting_name
+        .toLowerCase()
+        .includes('pre-season testing'),
+  )
+  .sort(
+    (left, right) =>
+      (getTimestamp(left.date_start) ?? 0) -
+      (getTimestamp(right.date_start) ?? 0),
+  );
 
       const meetingByKey = new Map<number, DbMeeting>();
       const roundByMeetingKey = new Map<number, number>();
