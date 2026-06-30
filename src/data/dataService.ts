@@ -1,56 +1,41 @@
-import type { Driver, Team, RaceWeekend, ChampionshipStanding, ConstructorStanding, DataStatus } from '../types';
-
 // ============================================================================
 // PLACEHOLDER DATA SERVICE
-// Real data integration will use OpenF1 API when available
-// All functions return empty/demo data for the 2026 season placeholder
+// Real app data is handled by src/services/openF1Service.ts
+// This file is kept only for compatibility with older imports.
 // ============================================================================
 
-const DATA_STATUS: DataStatus = {
+const DATA_STATUS = {
   core: 'awaiting_verified_ingestion',
   forecastModel: 'standby',
   lastSync: null,
 };
 
-export async function getDataStatus(): Promise<DataStatus> {
-  // TODO: Integrate with real API health check
+export async function getDataStatus() {
   return DATA_STATUS;
 }
 
-export async function getDrivers(): Promise<Driver[]> {
-  // TODO: Fetch from OpenF1 API
-  // Endpoint: /v1/drivers?season=2026
+export async function getDrivers() {
   return [];
 }
 
-export async function getTeams(): Promise<Team[]> {
-  // TODO: Fetch from OpenF1 API
-  // Endpoint: /v1/constructors?season=2026
+export async function getTeams() {
   return [];
 }
 
-export async function getRaceCalendar(): Promise<RaceWeekend[]> {
-  // TODO: Fetch from OpenF1 API
-  // Endpoint: /v1/races?season=2026
+export async function getRaceCalendar() {
   return [];
 }
 
-export async function getDriverStandings(): Promise<ChampionshipStanding[]> {
-  // TODO: Fetch from OpenF1 API
-  // Endpoint: /v1/driver_standings?season=2026
+export async function getDriverStandings() {
   return [];
 }
 
-export async function getConstructorStandings(): Promise<ConstructorStanding[]> {
-  // TODO: Fetch from OpenF1 API
-  // Endpoint: /v1/constructor_standings?season=2026
+export async function getConstructorStandings() {
   return [];
 }
 
-export async function getCurrentRound(): Promise<number> {
-  // TODO: Calculate based on current date and race calendar
+export async function getCurrentRound() {
   return 0;
 }
 
-// Export status for immediate use in components
 export const currentDataStatus = DATA_STATUS;
