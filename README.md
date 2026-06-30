@@ -10,6 +10,18 @@ It turns championship standings, calendar context, indexed race records, qualify
 
 ---
 
+## Product Preview
+
+| Command Centre | Circuit Matrix |
+| --- | --- |
+| ![APEX 26 Command Centre](docs/screenshots/command-centre.png) | ![APEX 26 Circuit Matrix](docs/screenshots/circuit-matrix.png) |
+| The live race-operations view, shared event context, verified-data controls, and event focus. | Calendar intelligence, selected-event context, readiness, and verified-result status. |
+
+| Scenario Lab | Model Notes |
+| --- | --- |
+| ![APEX 26 Scenario Lab](docs/screenshots/scenario-lab.png) | ![APEX 26 Model Notes](docs/screenshots/model-notes.png) |
+| Transparent Title Path Index with evidence coverage, model inputs, and guardrails. | Architecture, source policy, archive scope, and responsible-model documentation. |
+
 ## System at a Glance
 
 | Area | What APEX 26 Does |
