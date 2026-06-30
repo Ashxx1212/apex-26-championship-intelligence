@@ -139,7 +139,7 @@ export function TopStatusBar({
       label: 'VERIFIED DATA',
       accent: 'text-green-400',
       dot: 'bg-green-400',
-      detail: 'AUTO-SYNC READY',
+      detail: 'ON-DEMAND REFRESH READY',
     };
   }, [
     accessPaused,

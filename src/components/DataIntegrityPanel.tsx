@@ -126,12 +126,12 @@ export function DataIntegrityPanel({
         <div className="flex items-start gap-3">
           <RefreshCw className="mt-0.5 h-4 w-4 text-white/40" />
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-white/40">
-              Refresh Method
+        <div className="text-[10px] uppercase tracking-wider text-white/40">
+          Refresh Method
             </div>
             <div className="text-xs text-white/70">
-              Manual refresh / Command Centre auto-sync
-            </div>
+  On-demand refresh / Command Centre live refresh
+</div>
           </div>
         </div>
 
@@ -142,8 +142,8 @@ export function DataIntegrityPanel({
               Forecast Status
             </div>
             <div className="text-xs text-amber">
-              CALIBRATING — awaiting sufficient data
-            </div>
+  SCENARIO OUTLOOK ACTIVE · TITLE-WIN PROBABILITIES WITHHELD
+</div>
           </div>
         </div>
 
@@ -318,16 +318,16 @@ export function DataIntegrityPanel({
             </div>
 
             <div className="mt-1 text-[11px] text-white/60">
-              {archiveStatus.isComplete
-                ? `ANALYTICS ARCHIVE VERIFIED // ${archiveStatus.totalCompletedRaceSessions} OF ${archiveStatus.totalCompletedRaceSessions} ROUNDS INDEXED`
-                : `ARCHIVE PARTIAL // ${archiveStatus.successfullyIndexedRaceSessions} OF ${archiveStatus.totalCompletedRaceSessions} ROUNDS INDEXED`}
-            </div>
+  {archiveStatus.isComplete
+    ? `VERIFIED RACE ARCHIVE // ${archiveStatus.totalCompletedRaceSessions}/${archiveStatus.totalCompletedRaceSessions} VERIFIED RACE RECORDS INDEXED`
+    : `ARCHIVE PARTIAL // ${archiveStatus.successfullyIndexedRaceSessions}/${archiveStatus.totalCompletedRaceSessions} VERIFIED RACE RECORDS INDEXED`}
+</div>
 
-            {archiveStatus.hasPendingWork && (
-              <>
-                <div className="mt-1 text-[10px] text-white/40">
-                  {pendingRoundCount} rounds require verified-result retry.
-                </div>
+{archiveStatus.hasPendingWork && (
+  <>
+    <div className="mt-1 text-[10px] text-white/40">
+      {pendingRoundCount} source records pending verification.
+    </div>
 
                 {pendingMeetingNames && (
                   <div className="mt-1 text-[9px] text-white/35">

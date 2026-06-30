@@ -95,16 +95,20 @@ export function ScenarioSimulatorPanel({
   );
 
   const selectedWeekend = useMemo(
-    () =>
-      selectedMeetingKey !== null
-        ? data?.raceWeekends.find(
-            (weekend) => weekend.meetingKey === selectedMeetingKey
-          ) ?? null
-        : data?.raceWeekends.find((weekend) => weekend.status === 'active') ??
-          data?.raceWeekends[0] ??
-          null,
-    [data, selectedMeetingKey]
-  );
+  () =>
+    selectedMeetingKey !== null
+      ? data?.raceWeekends.find(
+          (weekend) => weekend.meetingKey === selectedMeetingKey
+        ) ?? null
+      : data?.raceWeekends.find(
+          (weekend) =>
+            weekend.meetingKey === data?.nextUpcomingMeeting?.meeting_key
+        ) ??
+        data?.raceWeekends.find((weekend) => weekend.status === 'active') ??
+        data?.raceWeekends[0] ??
+        null,
+  [data, selectedMeetingKey]
+);
 
   const preferredContender = useMemo(() => {
     if (selectedDriverNumber !== null) {

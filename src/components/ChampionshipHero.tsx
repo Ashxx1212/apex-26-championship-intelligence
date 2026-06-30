@@ -460,9 +460,10 @@ indexed result records.
                 </p>
 
                 <p className="mt-2 text-[10px] leading-relaxed text-white/45">
-                  CALIBRATING — sufficient verified race coverage is required
-                  before predictive outputs are enabled.
-                </p>
+  SCENARIO OUTLOOK ACTIVE — event-level projections use the current
+  verified archive. Title-win probabilities remain withheld while
+  verified race coverage continues to expand.
+</p>
               </div>
             </div>
 

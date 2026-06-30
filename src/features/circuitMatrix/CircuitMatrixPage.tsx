@@ -35,17 +35,25 @@ function RoundCard({
   onSelect: () => void;
 }) {
   const statusStyles = {
-    completed: 'border-green-400/20 bg-green-400/[0.06] text-green-300',
-    active: 'border-amber/30 bg-amber/[0.08] text-amber',
-    upcoming: 'border-white/10 bg-white/[0.04] text-white/40',
-  } as const;
+  completed: 'border-green-400/20 bg-green-400/[0.06] text-green-300',
+  pending: 'border-amber/30 bg-amber/[0.08] text-amber',
+  active: 'border-amber/30 bg-amber/[0.08] text-amber',
+  upcoming: 'border-white/10 bg-white/[0.04] text-white/40',
+} as const;
+
+const isCompletedPending =
+  weekend.status === 'completed' && !weekend.raceWinner;
+
+const cardStyle = isCompletedPending
+  ? statusStyles.pending
+  : statusStyles[weekend.status];
 
   return (
     <button
       type="button"
       onClick={onSelect}
       className={`w-full rounded-sm border p-4 text-left transition-all duration-200 ${
-        statusStyles[weekend.status]
+        cardStyle
       } ${
         isSelected
           ? 'ring-2 ring-cyan/40 shadow-[inset_3px_0_0_rgba(0,212,255,0.95)]'
@@ -63,8 +71,8 @@ function RoundCard({
         </div>
 
         <div className="text-right text-[10px] uppercase tracking-[0.18em] text-white/40">
-          {weekend.status}
-        </div>
+  {isCompletedPending ? 'PENDING' : weekend.status}
+</div>
       </div>
 
       <p className="mt-3 text-[10px] text-white/40">
@@ -96,6 +104,18 @@ export function CircuitMatrixPage({
   >(null);
 
   const raceWeekends = data?.raceWeekends ?? [];
+const defaultContextWeekend = useMemo(() => {
+  const nextEventMeetingKey = data?.nextUpcomingMeeting?.meeting_key ?? null;
+
+  return (
+    raceWeekends.find(
+      (weekend) => weekend.meetingKey === nextEventMeetingKey
+    ) ??
+    raceWeekends.find((weekend) => weekend.status === 'active') ??
+    raceWeekends[0] ??
+    null
+  );
+}, [data?.nextUpcomingMeeting?.meeting_key, raceWeekends]);
 
   useEffect(() => {
     const incomingMeetingIsValid =
@@ -109,14 +129,15 @@ export function CircuitMatrixPage({
       return;
     }
 
-    if (!localSelectedMeetingKey && raceWeekends.length > 0) {
-      const activeWeekend =
-        raceWeekends.find((weekend) => weekend.status === 'active') ??
-        raceWeekends[0];
-
-      setLocalSelectedMeetingKey(activeWeekend.meetingKey);
-    }
-  }, [localSelectedMeetingKey, raceWeekends, selectedMeetingKey]);
+    if (!localSelectedMeetingKey && defaultContextWeekend) {
+  setLocalSelectedMeetingKey(defaultContextWeekend.meetingKey);
+}
+  }, [
+  defaultContextWeekend,
+  localSelectedMeetingKey,
+  raceWeekends,
+  selectedMeetingKey,
+]);
 
   const activeMeetingKey =
     selectedMeetingKey !== null &&
@@ -129,15 +150,13 @@ export function CircuitMatrixPage({
   const selectedWeekend = useMemo(() => {
     if (!data) return null;
 
-    return (
-      raceWeekends.find(
-        (weekend) => weekend.meetingKey === activeMeetingKey
-      ) ??
-      raceWeekends.find((weekend) => weekend.status === 'active') ??
-      raceWeekends[0] ??
-      null
-    );
-  }, [activeMeetingKey, data, raceWeekends]);
+   return (
+  raceWeekends.find(
+    (weekend) => weekend.meetingKey === activeMeetingKey
+  ) ??
+  defaultContextWeekend
+);
+  }, [activeMeetingKey, data, defaultContextWeekend, raceWeekends]);
 
   const liveWeekend =
     raceWeekends.find((weekend) => weekend.status === 'active') ?? null;

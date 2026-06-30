@@ -152,35 +152,35 @@ function App() {
   }, [autoSyncStatus, refreshData]);
 
   const autoSyncLabel = useMemo(() => {
-    if (autoSyncStatus === 'enabled') {
-      return `AUTO-SYNC ENABLED · NEXT CHECK IN ${String(
-        Math.floor(autoSyncCountdown / 60)
-      ).padStart(2, '0')}:${String(autoSyncCountdown % 60).padStart(2, '0')}`;
-    }
+  if (autoSyncStatus === 'enabled') {
+    return `LIVE REFRESH ACTIVE · NEXT CHECK IN ${String(
+      Math.floor(autoSyncCountdown / 60)
+    ).padStart(2, '0')}:${String(autoSyncCountdown % 60).padStart(2, '0')}`;
+  }
 
-    if (autoSyncStatus === 'paused-tab-inactive') {
-      return 'AUTO-SYNC PAUSED · TAB INACTIVE';
-    }
+  if (autoSyncStatus === 'paused-tab-inactive') {
+    return 'LIVE REFRESH PAUSED · TAB INACTIVE';
+  }
 
-    if (autoSyncStatus === 'paused-source-access') {
-      return `AUTO-SYNC PAUSED · PUBLIC ACCESS RETRY IN ${String(
-        Math.floor(sourceAccessRetrySeconds / 60)
-      ).padStart(2, '0')}:${String(sourceAccessRetrySeconds % 60).padStart(
-        2,
-        '0'
-      )}`;
-    }
+  if (autoSyncStatus === 'paused-source-access') {
+    return `LIVE REFRESH PAUSED · PUBLIC ACCESS RETRY IN ${String(
+      Math.floor(sourceAccessRetrySeconds / 60)
+    ).padStart(2, '0')}:${String(sourceAccessRetrySeconds % 60).padStart(
+      2,
+      '0'
+    )}`;
+  }
 
-    if (autoSyncStatus === 'paused-rate-limit') {
-      return 'AUTO-SYNC PAUSED · RATE LIMIT COOLDOWN';
-    }
+  if (autoSyncStatus === 'paused-rate-limit') {
+    return 'LIVE REFRESH PAUSED · RATE LIMIT COOLDOWN';
+  }
 
-    return 'AUTO-SYNC PAUSED · MANUAL MODE';
-  }, [
-    autoSyncCountdown,
-    autoSyncStatus,
-    sourceAccessRetrySeconds,
-  ]);
+  return 'LIVE REFRESH PAUSED · COMMAND CENTRE ONLY';
+}, [
+  autoSyncCountdown,
+  autoSyncStatus,
+  sourceAccessRetrySeconds,
+]);
 
   const renderMainContent = () => {
     if (activeSection === 'command') {
