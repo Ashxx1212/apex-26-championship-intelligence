@@ -15,6 +15,7 @@ import { CACHE_CONFIG, OPENF1_CONFIG } from '../config/dataConfig';
 import { driverRepository } from '../repositories/driverRepository';
 import { teamRepository } from '../repositories/teamRepository';
 import { meetingRepository } from '../repositories/meetingRepository';
+import { sessionRepository } from '../repositories/sessionRepository';
 import type {
   OpenF1Meeting,
   OpenF1Session,
@@ -275,8 +276,8 @@ async function fetchCoreData(
   onProgress?.('Indexing 2026 sessions...');
   const cachedSessions = cacheService.getSessions<OpenF1Session[]>();
   const sessions = cachedSessions.status === 'valid' && cachedSessions.data
-    ? cachedSessions.data
-    : ((await openF1Client.getSessions(year)) as OpenF1Session[]);
+  ? cachedSessions.data
+  : await sessionRepository.getSessions(year);
 
   if (sessions.length > 0 && cachedSessions.status !== 'valid') {
     cacheService.setSessions(sessions);
