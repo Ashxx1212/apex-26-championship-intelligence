@@ -6,7 +6,6 @@ export const supabaseConstructorStandingService = {
     const { data, error } = await supabase
       .from('team_standings')
       .select('*')
-      .order('position_current', { ascending: true });
 
     if (error) {
       console.warn('[Supabase Constructor Standings] Read failed:', error.message);

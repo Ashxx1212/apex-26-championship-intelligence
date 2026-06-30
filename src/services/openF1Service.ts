@@ -15,7 +15,6 @@ import { CACHE_CONFIG, OPENF1_CONFIG } from '../config/dataConfig';
 import { driverRepository } from '../repositories/driverRepository';
 import { meetingRepository } from '../repositories/meetingRepository';
 import { constructorStandingRepository } from '../repositories/constructorStandingRepository';
-import { raceResultRepository } from '../repositories/raceResultRepository';
 import type {
   OpenF1Meeting,
   OpenF1Session,
@@ -322,9 +321,9 @@ async function fetchCoreData(
   );
 
   onProgress?.('Fetching latest race results...');
-  const latestRaceResults = await raceResultRepository.getRaceResults(
+  const latestRaceResults = (await openF1Client.getSessionResults(
   latestRaceSession.session_key
-);
+)) as OpenF1SessionResult[];
 
   return {
     meetings: championshipMeetings,
