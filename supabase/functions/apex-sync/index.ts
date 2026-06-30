@@ -9,6 +9,21 @@ const jsonHeaders = {
 const OPENF1_BASE_URL = "https://api.openf1.org/v1";
 const SEASON = 2026;
 
+type OpenF1Meeting = {
+  meeting_key: number;
+  meeting_name: string;
+  meeting_official_name: string;
+  location: string;
+  country_key: number;
+  country_code: string;
+  country_name: string;
+  circuit_key: number;
+  circuit_short_name: string;
+  date_start: string;
+  date_end: string;
+  gmt_offset: string;
+};
+
 type OpenF1Session = {
   session_key: number;
   session_name: string;
@@ -75,6 +90,9 @@ export default {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     try {
+      const meetings = await fetchJson<OpenF1Meeting[]>(
+  `${OPENF1_BASE_URL}/meetings?year=${SEASON}`,
+);
       const sessions = await fetchJson<OpenF1Session[]>(
         `${OPENF1_BASE_URL}/sessions?year=${SEASON}`,
       );
@@ -114,7 +132,30 @@ export default {
       }));
 
       await supabase.from("drivers").delete().eq("season", SEASON);
-      await supabase.from("teams").delete().eq("season", SEASON);
+await supabase.from("teams").delete().eq("season", SEASON);
+await supabase.from("meetings").delete().eq("season", SEASON);
+
+const meetingsToInsert = meetings.map((meeting) => ({
+  season: SEASON,
+  meeting_key: meeting.meeting_key,
+  meeting_name: meeting.meeting_name,
+  meeting_official_name: meeting.meeting_official_name,
+  location: meeting.location,
+  country_code: meeting.country_code,
+  country_name: meeting.country_name,
+  circuit_key: meeting.circuit_key,
+  circuit_short_name: meeting.circuit_short_name,
+  date_start: meeting.date_start,
+  date_end: meeting.date_end,
+}));
+
+const { error: meetingsInsertError } = await supabase
+  .from("meetings")
+  .insert(meetingsToInsert);
+
+if (meetingsInsertError) {
+  throw new Error(`Meetings insert failed: ${meetingsInsertError.message}`);
+}
 
       const { error: teamsInsertError } = await supabase
         .from("teams")
@@ -168,8 +209,9 @@ export default {
           season: SEASON,
           source: "OpenF1",
           latestRaceSessionKey: latestRaceSession.session_key,
-          teamsSynced: teamsToInsert.length,
-          driversSynced: driversToInsert.length,
+          meetingsSynced: meetingsToInsert.length,
+teamsSynced: teamsToInsert.length,
+driversSynced: driversToInsert.length,
         },
         { status: 200, headers: jsonHeaders },
       );
