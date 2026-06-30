@@ -9,6 +9,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { openF1Service, OpenF1Error } from '../services/openF1Service';
+import { championshipDataService } from '../services/championshipDataService';
 import { isOpenF1PublicAccessRestriction } from '../services/openF1Client';
 import { cacheService } from '../services/cacheService';
 import { enrichDriverStandings, enrichTeamStandings } from '../utils/championshipMetrics';
@@ -198,7 +199,7 @@ export function useChampionshipData(): UseChampionshipDataResult {
       setLoadingMessage(LOADING_MESSAGES.core);
 
       try {
-        const result = await openF1Service.fetchCoreSnapshot(2026, {
+        const result = await championshipDataService.fetchCoreSnapshot(2026, {
           forceRefresh,
           onProgress: (message) => setLoadingMessage(message),
         });
