@@ -12,8 +12,8 @@
 import { openF1Client, OpenF1Error } from './openF1Client';
 import { cacheService } from './cacheService';
 import { CACHE_CONFIG, OPENF1_CONFIG } from '../config/dataConfig';
-import { supabaseTeamService } from './supabaseTeamService';
 import { driverRepository } from '../repositories/driverRepository';
+import { teamRepository } from '../repositories/teamRepository';
 import type {
   OpenF1Meeting,
   OpenF1Session,
@@ -314,14 +314,9 @@ async function fetchCoreData(
     latestRaceSession.session_key
   )) as OpenF1ChampionshipDriver[];
 
- const supabaseTeams = await supabaseTeamService.getTeams();
-
-const championshipTeams =
-  supabaseTeams.length > 0
-    ? supabaseTeams
-    : ((await openF1Client.getChampionshipTeams(
-        latestRaceSession.session_key
-      )) as OpenF1ChampionshipTeam[]);
+ const championshipTeams = await teamRepository.getChampionshipTeams(
+  latestRaceSession.session_key
+);
 
   onProgress?.('Fetching latest race results...');
   const latestRaceResults = (await openF1Client.getSessionResults(
