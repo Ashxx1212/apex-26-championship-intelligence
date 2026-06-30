@@ -43,6 +43,13 @@ type OpenF1Driver = {
   team_colour?: string;
 };
 
+type OpenF1ChampionshipDriver = {
+  driver_number: number;
+  position_current: number;
+  points_current: number;
+  wins_current: number;
+};
+
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
 
@@ -113,6 +120,10 @@ export default {
       const openF1Drivers = await fetchJson<OpenF1Driver[]>(
         `${OPENF1_BASE_URL}/drivers?session_key=${latestRaceSession.session_key}`,
       );
+
+      const openF1DriverStandings = await fetchJson<OpenF1ChampionshipDriver[]>(
+  `${OPENF1_BASE_URL}/championship?session_key=${latestRaceSession.session_key}`,
+);
 
       const teamMap = new Map<string, { team_name: string; team_colour: string | null }>();
 
@@ -200,6 +211,51 @@ if (meetingsInsertError) {
       if (driversInsertError) {
         throw new Error(`Drivers insert failed: ${driversInsertError.message}`);
       }
+      const { data: insertedDrivers, error: driversSelectError } = await supabase
+  .from("drivers")
+  .select("id, driver_number")
+  .eq("season", SEASON);
+
+if (driversSelectError) {
+  throw new Error(`Drivers select failed: ${driversSelectError.message}`);
+}
+
+const driverIdByNumber = new Map(
+  insertedDrivers?.map((driver) => [driver.driver_number, driver.id]) ?? [],
+);
+
+await supabase.from("driver_standings").delete().eq("season", SEASON);
+
+const driverStandingsToInsert = openF1DriverStandings
+  .map((standing) => {
+    const driverId = driverIdByNumber.get(standing.driver_number);
+
+    if (!driverId) {
+      return null;
+    }
+
+    return {
+      season: SEASON,
+      driver_id: driverId,
+      championship_position: standing.position_current,
+      points: standing.points_current,
+      wins: standing.wins_current,
+      gap_to_leader: null,
+      source_meeting_key: null,
+      snapshot_at: new Date().toISOString(),
+    };
+  })
+  .filter((standing) => standing !== null);
+
+const { error: driverStandingsInsertError } = await supabase
+  .from("driver_standings")
+  .insert(driverStandingsToInsert);
+
+if (driverStandingsInsertError) {
+  throw new Error(
+    `Driver standings insert failed: ${driverStandingsInsertError.message}`,
+  );
+}
 
       return Response.json(
         {
@@ -212,6 +268,7 @@ if (meetingsInsertError) {
           meetingsSynced: meetingsToInsert.length,
 teamsSynced: teamsToInsert.length,
 driversSynced: driversToInsert.length,
+driverStandingsSynced: driverStandingsToInsert.length,
         },
         { status: 200, headers: jsonHeaders },
       );
