@@ -2,33 +2,97 @@
 
 **Live Demo:** https://apex-26-championship-intelligence.vercel.app/
 
-A cinematic motorsport intelligence portfolio system built with **React, TypeScript, Vite, and OpenF1-derived public data**.
+APEX 26 is a full-stack motorsport intelligence portfolio platform built with **React, TypeScript, Vite, Supabase, and OpenF1-derived public data**.
 
-APEX 26 turns verified championship, event, driver, constructor, weather, and historical-session information into a connected race-operations interface. It combines a Command Centre, Driver Intelligence dossiers, Constructor Intelligence, Circuit Matrix, transparent Scenario Lab, historical replay capability, Predictive Outlook, local caching, archive recovery, and explicit data-integrity controls.
+It turns championship standings, calendar context, indexed race records, qualifying evidence, and reliability signals into a connected command-centre experience for driver, team, circuit, scenario, and next-event analysis.
 
-> **Portfolio project:** APEX 26 is an unofficial motorsport analytics demonstration. It is not affiliated with Formula 1, the FIA, any racing team, driver, or commercial rights holder.
+> **Portfolio project:** APEX 26 is an unofficial motorsport analytics demonstration. It is not affiliated with Formula 1, the FIA, OpenF1, any racing team, driver, commercial rights holder, or motorsport organisation.
 
 ---
 
-## Highlights
+## System at a Glance
 
-* **Cinematic Command Centre** for championship state, latest verified results, event focus, operational watchlists, Predictive Outlook, and data status.
-* **Shared Intelligence Context** that carries selected driver, constructor, and race weekend across modules.
-* **Driver Intelligence** dossiers with recent race form, qualifying and finish metrics, completion rate, DNF count, teammate comparison, and verified observations.
-* **Constructor Intelligence** with team rankings, driver contribution split, evidence board, reliability signals, latest verified race detail, and archive coverage.
-* **Circuit Matrix** for season event navigation, verified race-result state, event readiness, and Scenario Lab routing.
-* **Scenario Lab** with a transparent Title Path Index based on current points and verified historical evidence—not title-win probability or betting advice.
-<<<<<<< HEAD
-* **Session Intelligence Replay** for verified historical race review, replay event logs, timing order, race-control events, stint and weather observations when supported by verified historical data.
-* **Predictive Outlook** for the next indexed Grand Prix, combining verified completed-race evidence, transparent Top 5 projected-winner estimates, model confidence, evidence coverage, reliability/form inputs, and external weather context when available.
-* **Model Trust Console** documenting architecture, source policy, archive rules, metric definitions, replay integrity, scenario guardrails, and build record.
-* **Data Integrity Protocol** with local cache awareness, partial archive status, missing-round recovery, rate-limit handling, and no fabricated data.
-=======
-* **Session Intelligence Replay** for verified historical race review, completed-race archive selection, replay event logs, timing order, race-control events, stint data, and weather observations when supported by verified historical data.
-* **Predictive Outlook** for the next indexed Grand Prix, combining verified completed-race evidence, transparent Top 5 projected-winner estimates, model confidence, evidence coverage, reliability/form inputs, and external weather context when available.
-* **Model Trust Console** documenting architecture, source policy, archive rules, metric definitions, replay integrity, forecast guardrails, scenario guardrails, and build record.
-* **Data Integrity Protocol** with local cache awareness, partial archive status, missing-round recovery, rate-limit handling, and no fabricated verified data.
->>>>>>> 3fd39d4 (docs: document predictive outlook)
+| Area | What APEX 26 Does |
+| --- | --- |
+| **Purpose** | Presents verified championship intelligence through a connected motorsport operations interface. |
+| **Data flow** | OpenF1 → Supabase Edge Functions → Supabase PostgreSQL → React dashboard. |
+| **Persistence** | Stores championship entities, standings, indexed race results, qualifying evidence, and sync-run audit records in Supabase. |
+| **Transparency** | Separates completed calendar rounds, verified indexed race records, source-pending records, model estimates, and unavailable data. |
+| **Model discipline** | Uses transparent, evidence-weighted portfolio estimates. It does not present model output as official results, betting advice, or guarantees. |
+
+---
+
+## Key Features
+
+- **Command Centre** for the current championship state, next-event focus, verified standings, archive coverage, latest verified result, watchlists, and operational context.
+- **Shared Intelligence Context** that keeps driver, team, and selected race-weekend context aligned across modules.
+- **Driver Intelligence** with form, qualifying, classified finish, completion rate, DNF count, teammate comparison, and indexed historical evidence.
+- **Team Performance** with constructor standing, driver contribution, performance signals, reliability, latest verified result, and coverage limitations.
+- **Circuit Matrix** for season event navigation, track context, completed/upcoming status, verified winner state, and pending-result visibility.
+- **Scenario Lab** with a transparent Title Path Index based on current standings, indexed results, qualifying evidence, reliability, and remaining calendar context.
+- **Predictive Outlook** for the next indexed Grand Prix, using labelled evidence-weighted Top 5 portfolio estimates.
+- **Model Notes** documenting architecture, source policy, replay limitations, metric definitions, model guardrails, and data-integrity controls.
+- **Data Integrity Protocol** with refresh controls, archive coverage, rate-limit awareness, source-access handling, and explicit pending states.
+
+---
+
+## Production Architecture
+
+```text
+OpenF1 Public API
+        ↓
+Supabase Edge Functions
+  ├── apex-health
+  ├── apex-sync
+  └── apex-backfill
+        ↓
+Supabase PostgreSQL
+  ├── meetings
+  ├── teams
+  ├── drivers
+  ├── driver_standings
+  ├── team_standings
+  ├── race_results
+  └── sync_runs
+        ↓
+Supabase-first ChampionshipDataSnapshot
+        ↓
+React + TypeScript Dashboard
+  ├── Command Centre
+  ├── Championship
+  ├── Driver Intel
+  ├── Team Performance
+  ├── Circuit Matrix
+  ├── Scenario Lab
+  └── Model Notes
+```
+
+### Backend Design
+
+- **`apex-sync`** ingests current calendar, teams, drivers, standings, latest race results, and qualifying results.
+- **`apex-backfill`** extends verified historical result coverage in controlled batches.
+- **`apex-health`** supports backend health visibility.
+- Core entities use upserts to preserve stable UUID relationships.
+- `sync_runs` provides audit logging for ingestion activity.
+- Public read-only policies support the dashboard’s browser-side data access.
+- The React application reads a **Supabase-first** snapshot and uses OpenF1 only as a controlled fallback.
+
+---
+
+## Data Transparency Rules
+
+APEX deliberately distinguishes between several different states:
+
+| State | Meaning |
+| --- | --- |
+| **Completed calendar round** | A Grand Prix has passed on the official calendar. |
+| **Verified race record indexed** | A race result has been retrieved, validated, and stored for analysis. |
+| **Source record pending** | A completed event exists, but an eligible source result is not yet available or indexed. |
+| **Verified historical metric** | A value derived from stored standings, results, qualifying, or driver/team metadata. |
+| **Model estimate** | A transparent analytical output, clearly separated from verified race facts. |
+| **Unavailable data** | Displayed as pending or unavailable rather than fabricated. |
+
+This means a completed round is not automatically treated as a verified indexed result.
 
 ---
 
@@ -36,243 +100,120 @@ APEX 26 turns verified championship, event, driver, constructor, weather, and hi
 
 ### Command Centre
 
-The central operating view for:
+The primary operating view includes:
 
-* Current championship and calendar status
-* Latest verified Grand Prix result
-* Selected event priority
-* Championship pressure and signal watchlists
-* Historical replay gateway and completed-race replay archive
-* Predictive Outlook for the next indexed Grand Prix
-* Data integrity controls
-* Cache, source, archive, and refresh status
+- Current event and next-event context
+- Championship leader and closest challenger
+- Latest verified Grand Prix debrief
+- Archive-readiness and source-pending visibility
+- Verified classification snapshot
+- Operational watchlist
+- Predictive Outlook
+- Live Refresh status
+- Data Integrity controls
 
 ### Championship
 
-A championship-state workspace featuring:
+A championship workspace featuring:
 
-* Drivers’ standings
-* Constructors’ standings
-* Recent form markers
-* Championship momentum board
-* Season Vector race timeline
-* Race Radar for completed and upcoming events
-* Forecast calibration status
-* Data integrity and archive coverage controls
+- Drivers’ standings
+- Constructors’ standings
+- Recent form markers
+- Race timeline and calendar progression
+- Verified archive coverage
+- Explicit forecasting guardrails
 
 ### Driver Intel
 
-A driver-level intelligence dossier including:
+A driver dossier including:
 
-* Championship position and points gap
-* Recent form markers
-* Average classified finish
-* Average qualifying position
-* Completion rate and DNF count
-* Recent verified race history
-* Teammate comparison
-* Verified observations derived from indexed race records
-* Navigation to Constructor Intelligence, Circuit Matrix, and Scenario Lab
+- Championship position and points gap
+- Recent classified race form
+- Average classified finish
+- Indexed qualifying position
+- Completion rate and DNF count
+- Teammate comparison
+- Driver contribution and historical observations
+- Navigation into Team Performance, Circuit Matrix, and Scenario Lab
 
 ### Team Performance
 
 A constructor intelligence workspace featuring:
 
-* Constructor ranking navigator
-* Driver contribution split
-* Team performance index
-* Reliability and completion metrics
-* Teammate advantage comparison
-* Latest verified team result
-* Archive coverage and evidence limitations
-* Routing to Driver Intel and Circuit Matrix
+- Constructor rankings
+- Driver contribution split
+- Team performance index
+- Reliability and completion evidence
+- Latest verified result
+- Archive coverage and evidence limitations
 
 ### Circuit Matrix
 
 A season event and track intelligence module featuring:
 
-* Completed, active, and upcoming event states
-* Verified race winner display only after result indexing
-* Selected event context
-* Circuit type and calendar information
-* Archive readiness and result-verification state
-* Routing into Scenario Lab with the selected weekend preserved
+- Completed, upcoming, and active calendar states
+- Selected event context
+- Circuit and calendar information
+- Verified winner display only after result indexing
+- Amber pending status for completed rounds without a verified source record
+- Routing into Scenario Lab while preserving the selected weekend
 
 ### Scenario Lab
 
-A transparent contender-analysis workspace.
+Scenario Lab provides a transparent **Title Path Index** based on:
 
-The Scenario Lab provides a **Title Path Index** based on:
+- Current championship position
+- Points gap to the leader
+- Indexed race and qualifying evidence
+- Reliability and completion signals
+- Recent form
+- Remaining calendar context
+- Archive coverage limitations
 
-* Current championship position
-* Points gap to leader
-* Indexed race and qualifying evidence
-* Reliability and completion signals
-* Recent form
-* Archive coverage limitations
+It does **not** provide title-win probability, betting advice, financial advice, or fabricated race outcomes.
 
-It does **not** provide title-win probability, betting advice, financial advice, or fabricated race predictions.
+### Predictive Outlook
+
+Predictive Outlook is an evidence-weighted portfolio model for the next indexed Grand Prix.
+
+It includes:
+
+- Ranked Top 5 next-race outlook
+- Probability-style model estimates
+- Completed-race evidence coverage
+- Recent form and classified finish signals
+- Indexed qualifying evidence
+- Team-performance and completion-reliability inputs
+- External weather context when available within the provider window
+
+Predictive Outlook is clearly labelled as a model estimate. It is not official timing, a trained machine-learning system, betting advice, financial advice, or a guaranteed outcome.
 
 ### Session Intelligence Replay
 
-A historical replay environment for indexed, verified sessions.
+Replay is an optional historical session-review feature.
 
-Capabilities include:
-
-* Completed-race replay archive selector
-* Historical race-position order
-* Replay event bus
-* Race-control event review
-* Lap and timing progression
-* Verified stint and weather observations where available
-* Playback controls and replay speed selection
-* Explicit distinction between replay data and live timing
-
-### Predictive Outlook
-
-An evidence-weighted race-estimation panel for the next indexed Grand Prix.
-
-Capabilities include:
-
-* Top 5 projected race-winner outlook
-* Transparent probability-style model estimates
-* Model confidence and completed-race evidence coverage
-* Recent form, race pace, qualifying, team-performance, and reliability inputs
-* Weather context including temperature, rain risk, precipitation, and wind when the event falls inside the supported forecast window
-* Automatic event recalculation when the next upcoming Grand Prix changes
-* Explicit distinction between verified historical evidence, external weather signals, and model-estimated outcomes
-
-Predictive Outlook is a portfolio-model feature. It does not present projections as official timing, betting advice, financial advice, guarantees, or driver-specific wet-weather performance claims.
-
----
-### Predictive Outlook
-
-An evidence-weighted race-estimation panel for the next indexed Grand Prix.
-
-Capabilities include:
-
-* Top 5 projected race-winner outlook
-* Transparent probability-style model estimates
-* Model confidence and completed-race evidence coverage
-* Recent form, race pace, qualifying, team-performance, and reliability inputs
-* Weather context including temperature, rain risk, precipitation, and wind when the event falls inside the supported forecast window
-* Automatic event recalculation when the next upcoming Grand Prix changes
-* Explicit distinction between verified historical evidence, external weather signals, and model-estimated outcomes
-
-Predictive Outlook is a portfolio-model feature. It does not present projections as official timing, betting advice, financial advice, guarantees, or driver-specific wet-weather performance claims.
-
-## Data Integrity Principles
-
-APEX follows strict data-discipline rules:
-
-1. **Verified inputs only**
-   Championship standings, session metadata, driver data, and completed race records are sourced from OpenF1-derived public data or a previously verified local cache.
-
-2. **No fabricated verified data**
-   Missing results, unavailable metrics, unindexed rounds, tyre state, weather observations, timing, and strategy calls are never presented as verified facts.
-
-   Predictive Outlook outputs are clearly labelled as evidence-weighted model estimates. They are separated from verified historical records and never presented as guaranteed race outcomes.
-
-3. **Partial archive is visible**
-   Archive coverage is displayed across the system. Metrics derived from indexed race records are clearly labelled as partial when completed rounds remain pending.
-
-4. **Replay is not presented as live timing**
-   Historical session replay is explicitly labelled as replay intelligence. Live timing is shown only when a verified current timing source is available.
-
-5. **Scenario Lab is evidence-based**
-   The Title Path Index ranks current contender evidence; it is not a prediction engine or probability model.
-
-6. **Forecast and weather signals are labelled separately**
-   Weather information is treated as external forecast context when available within the provider’s supported time window. Model estimates show evidence coverage and confidence so uncertainty remains visible.
-
-7. **Source restrictions are handled safely**
-   During provider restrictions, rate limits, or unavailable access, APEX preserves available verified cache data and pauses unsupported refresh behaviour.
-
----
-
-## Data Architecture
-
-```text
-OpenF1-derived public source
-        ↓
-Rate-limited API client
-        ↓
-Versioned local cache and archive recovery
-        ↓
-Championship standings and verified race records
-        ↓
-Driver Intel / Team Performance / Circuit Matrix
-        ↓
-Predictive Outlook + external weather forecast context
-        ↓
-Scenario Lab / Session Intelligence Replay / Model Trust Console
-```
-
----
-
-## Cache and Archive Strategy
-
-### Core Snapshot
-
-The primary championship snapshot includes:
-
-* Current calendar and event state
-* Driver standings
-* Constructor standings
-* Driver metadata
-* Latest verified result
-* Shared championship context
-
-Core data is cached locally to allow fast re-entry and graceful fallback when public source access is temporarily unavailable.
-
-### Analytics Archive
-
-The analytics archive indexes completed race and qualifying data progressively.
-
-It supports:
-
-* Recent-form calculations
-* Average finish and qualifying metrics
-* Completion and reliability rates
-* Teammate comparisons
-* Driver contribution analysis
-* Historical replay inputs
-* Predictive Outlook evidence inputs
-* Transparent archive coverage reporting
-
-Partially indexed rounds remain visibly marked as pending rather than being estimated.
-
-### Rate-Limit and Restriction Handling
-
-The application uses controlled request behaviour to reduce avoidable source pressure:
-
-* Serial API request processing
-* Delayed historical archive requests
-* Retry and cooldown handling for restricted access
-* Cached-data fallback
-* Visible source and archive status
-* Manual recovery controls for missing rounds
+- Verified archive context includes classified results, qualifying, laps, and gap data where indexed.
+- Optional historical replay enrichment can request additional OpenF1 signals on demand.
+- Pit, stint, race-control, and weather signals are **not** represented as a complete Supabase-persisted replay archive.
+- Source availability can affect replay loading.
+- Replay is never presented as live timing.
 
 ---
 
 ## Technology Stack
 
-* **React**
-* **TypeScript**
-* **Vite**
-* **Tailwind CSS**
-* **Lucide React**
-* **OpenF1 public API**
-* **External weather forecast service**
-* **Evidence-weighted predictive modelling**
-* **LocalStorage-based versioned caching**
-* **Git and GitHub**
-<<<<<<< HEAD
-* **External weather forecast service**
-* **Evidence-weighted predictive modelling**
-=======
-* **Vercel**
->>>>>>> 3fd39d4 (docs: document predictive outlook)
+- **React**
+- **TypeScript**
+- **Vite**
+- **Tailwind CSS**
+- **Lucide React**
+- **Supabase PostgreSQL**
+- **Supabase Edge Functions**
+- **Supabase Row Level Security**
+- **OpenF1 public API**
+- **External weather forecast context**
+- **Vercel**
+- **Git and GitHub**
 
 ---
 
@@ -281,51 +222,27 @@ The application uses controlled request behaviour to reduce avoidable source pre
 ```text
 src/
 ├── components/                  # Shared dashboard UI
-│   ├── AppShell.tsx
-│   ├── BootSequence.tsx
-│   ├── CommandCentrePanel.tsx
-│   ├── DataIntegrityPanel.tsx
-│   ├── SessionReplayDock.tsx
-│   ├── SideNavigation.tsx
-│   └── TopStatusBar.tsx
-│
 ├── features/
-│   ├── championship/            # Championship state and standings
 │   ├── circuitMatrix/           # Event and track intelligence
 │   ├── driverIntel/             # Driver dossiers and comparisons
-│   ├── forecast/                # Calibration framework
 │   ├── notes/                   # Model Trust Console
-│   ├── predictiveOutlook/       # Evidence-weighted race estimation
+│   ├── predictiveOutlook/       # Evidence-weighted race outlook
 │   ├── scenarioLab/             # Transparent contender model
 │   └── teamPerformance/         # Constructor intelligence
-│   ├── features/
-│   ├── predictiveOutlook/       # Evidence-weighted race estimation
-│
 ├── hooks/
 │   ├── useChampionshipData.ts
 │   └── useSessionReplay.ts
-│
-├── services/
-│   ├── cacheService.ts
-│   ├── openF1Client.ts
-│   ├── openF1Service.ts
-│   ├── sessionReplayService.ts
-│   └── weatherForecastService.ts # External weather forecast context
-│
-├── types/
-│   ├── app.ts
-│   ├── f1.ts
-│   ├── forecast.ts              # Forecast and weather types
-│   └── liveSession.ts
-│
-├── utils/
-│   ├── championshipMetrics.ts
-│   ├── formatters.ts
-│   └── raceForecast.ts          # Transparent forecast scoring logic
-│
-└── config/
-    ├── appConfig.ts
-    └── dataConfig.ts
+├── repositories/                # Supabase read-layer repositories
+├── services/                    # Snapshot, OpenF1, Supabase, replay services
+├── types/                       # Shared application types
+├── utils/                       # Formatting and analytics helpers
+└── supabaseClient.ts             # Browser-side Supabase client
+
+supabase/
+└── functions/
+    ├── apex-health/
+    ├── apex-sync/
+    └── apex-backfill/
 ```
 
 ---
@@ -334,16 +251,29 @@ src/
 
 ### Prerequisites
 
-* Node.js 18 or later
-* npm
+- Node.js 18 or later
+- npm
+- A Supabase project configured with the required tables, RLS policies, and Edge Functions
 
 ### Installation
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Ashxx1212/apex-26-championship-intelligence.git
 cd apex-26-championship-intelligence
 npm install
 ```
+
+### Environment Variables
+
+Create a `.env.local` file:
+
+```env
+VITE_OPENF1_BASE_URL=https://api.openf1.org/v1
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
+```
+
+> Never place a Supabase service-role key in the frontend or in `VITE_` variables.
 
 ### Start Development Server
 
@@ -351,7 +281,7 @@ npm install
 npm run dev
 ```
 
-The application will normally be available at:
+The application is normally available at:
 
 ```text
 http://localhost:5173
@@ -368,33 +298,24 @@ npm run build
 ## Available Scripts
 
 ```bash
-npm run dev       # Start local development server
-npm run build     # Create production build
-npm run lint      # Run ESLint checks
-npm run typecheck # Run TypeScript type checking
+npm run dev        # Start local development server
+npm run build      # Create production build
+npm run lint       # Run ESLint checks
+npm run typecheck  # Run TypeScript type checking
 ```
-
----
-
-## Environment Variables
-
-| Variable               | Description         | Default                     |
-| ---------------------- | ------------------- | --------------------------- |
-| `VITE_OPENF1_BASE_URL` | OpenF1 API base URL | `https://api.openf1.org/v1` |
-
-No private API key is required for the OpenF1 public-source workflow.
 
 ---
 
 ## Current Scope and Limitations
 
-* Public source access may be temporarily restricted during active sessions.
-* Analytics archive coverage can be partial while historical rounds are being indexed.
-* Missing historical records remain pending instead of being estimated.
-* Predictive Outlook is an explainable, evidence-weighted portfolio model, not a trained machine-learning system.
-* Forecast estimates remain deliberately cautious when completed-race evidence is limited or weather conditions increase uncertainty.
-* External weather signals are available only when the upcoming event falls inside the weather provider’s supported forecast window.
-* The application does not provide betting, financial, race-strategy, or title-win prediction advice.
+- OpenF1 public-source access can be restricted or rate-limited during active sessions.
+- Historical race coverage may be partial while completed records are being indexed.
+- Completed calendar rounds and verified race records are intentionally displayed separately.
+- Missing historical records remain pending rather than being estimated.
+- Predictive Outlook remains an explainable portfolio model, not a trained machine-learning system.
+- Title-win probabilities are deliberately withheld.
+- External weather context is available only inside the provider’s supported forecast window.
+- The application does not provide betting, financial, race-strategy, or title-win prediction advice.
 
 ---
 
@@ -402,7 +323,7 @@ No private API key is required for the OpenF1 public-source workflow.
 
 APEX 26 is an unofficial motorsport analytics portfolio project created for educational and demonstration purposes.
 
-It is not affiliated with Formula 1, the FIA, OpenF1, any racing team, driver, commercial rights holder, or motorsport organisation. All displayed intelligence should be treated as a portfolio demonstration of data architecture, UI engineering, analytics presentation, and responsible source-handling design.
+It demonstrates full-stack data integration, responsive dashboard design, source-aware data handling, transparent analytical modelling, and recruiter-facing technical documentation.
 
 ---
 
