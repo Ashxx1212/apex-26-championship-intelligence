@@ -61,8 +61,13 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
               </h1>
 
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/50">
-                APEX 26 is a verified motorsport intelligence portfolio system. Verified historical metrics derive from OpenF1 session data, local cache, or archive reconstruction. Predictive Outlook is a separate evidence-weighted portfolio model for the next indexed Grand Prix; model estimates and external weather signals are labelled distinctly and are never presented as verified outcomes.
-              </p>
+  APEX 26 is a verified motorsport intelligence portfolio system. Verified
+  historical metrics originate from OpenF1 data, ingested through Supabase
+  Edge Functions and persisted in Supabase PostgreSQL. Predictive Outlook is
+  a separate evidence-weighted portfolio model for the next indexed Grand
+  Prix; model estimates and external weather signals are labelled distinctly
+  and are never presented as verified outcomes.
+</p>
             </div>
 
             {/* Status badges */}
@@ -121,6 +126,73 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
           </div>
         </div>
       </section>
+      {/* System at a Glance */}
+      <section className="border border-white/10 bg-graphite-light/30">
+        <div className="flex items-center gap-2 border-b border-white/10 bg-white/[0.02] px-4 py-3">
+          <Gauge className="h-4 w-4 text-cyan" />
+          <p className="text-sm uppercase tracking-[0.18em] text-white/70">
+            System at a Glance
+          </p>
+        </div>
+
+        <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-sm border border-cyan/25 bg-cyan/[0.03] p-3">
+            <p className="text-[8px] uppercase tracking-[0.18em] text-cyan">
+              Purpose
+            </p>
+            <p className="mt-2 text-[11px] font-semibold text-white">
+              Championship Intelligence
+            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-white/40">
+              A portfolio platform for verified Formula championship analysis,
+              race context, driver intelligence, team performance, and
+              transparent scenario modelling.
+            </p>
+          </div>
+
+          <div className="rounded-sm border border-green-400/25 bg-green-400/[0.03] p-3">
+            <p className="text-[8px] uppercase tracking-[0.18em] text-green-400">
+              Data Flow
+            </p>
+            <p className="mt-2 text-[11px] font-semibold text-white">
+              OpenF1 → Supabase → React
+            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-white/40">
+              OpenF1 data is ingested through Edge Functions, persisted in
+              PostgreSQL, and delivered to the dashboard through a
+              Supabase-first read model.
+            </p>
+          </div>
+
+          <div className="rounded-sm border border-amber/25 bg-amber/[0.03] p-3">
+            <p className="text-[8px] uppercase tracking-[0.18em] text-amber">
+              Reliability Controls
+            </p>
+            <p className="mt-2 text-[11px] font-semibold text-white">
+              Verified Before Display
+            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-white/40">
+              Completed calendar rounds, indexed results, pending source
+              records, source restrictions, and partial archive coverage are
+              labelled separately throughout the platform.
+            </p>
+          </div>
+
+          <div className="rounded-sm border border-crimson/25 bg-crimson/[0.03] p-3">
+            <p className="text-[8px] uppercase tracking-[0.18em] text-crimson">
+              Model Discipline
+            </p>
+            <p className="mt-2 text-[11px] font-semibold text-white">
+              Transparent, Not Overclaimed
+            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-white/40">
+              Scenario and outlook outputs are explicitly labelled model
+              estimates. Verified records, external context, and unavailable
+              data are never presented as the same thing.
+            </p>
+          </div>
+        </div>
+      </section>
 
       {/* Intelligence Architecture Map */}
       <section className="border border-white/10 bg-graphite-light/30">
@@ -133,8 +205,12 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
 
         <div className="p-4 md:p-5">
           <p className="mb-4 max-w-3xl text-[11px] leading-relaxed text-white/45">
-            Verified historical data flows through cache and archive layers into championship standings and race records. Predictive Outlook creates explicitly labelled model estimates from verified completed-race evidence, while weather context is fetched separately and never mixed with verified results.
-          </p>
+  OpenF1 data is ingested through Supabase Edge Functions, persisted in
+  Supabase PostgreSQL, and served to the React dashboard as a
+  Supabase-first championship snapshot. Predictive Outlook creates
+  explicitly labelled model estimates from verified completed-race
+  evidence, while weather context remains separate from verified results.
+</p>
 
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
             {/* Source */}
@@ -154,36 +230,40 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
             <ArrowRight className="hidden h-4 w-4 text-white/20 md:block" />
             <ArrowDown className="h-4 w-4 text-white/20 md:hidden" />
 
-            {/* Cache & Archive */}
-            <div className="flex-1 border border-cyan/30 bg-cyan/[0.04] p-3">
-              <div className="flex items-center gap-2">
-                <Database className="h-4 w-4 text-cyan" />
-                <p className="text-[9px] uppercase tracking-[0.2em] text-cyan">
-                  Cache &amp; Archive
-                </p>
-              </div>
-              <p className="mt-2 text-sm font-semibold text-white">Local Versioned Cache</p>
-              <p className="mt-1 text-[10px] text-white/40">
-                30min core / 60min raw / archive reconstruction
-              </p>
-            </div>
+            {/* Ingestion & Persistence */}
+<div className="flex-1 border border-cyan/30 bg-cyan/[0.04] p-3">
+  <div className="flex items-center gap-2">
+    <Database className="h-4 w-4 text-cyan" />
+    <p className="text-[9px] uppercase tracking-[0.2em] text-cyan">
+      Ingestion &amp; Persistence
+    </p>
+  </div>
+  <p className="mt-2 text-sm font-semibold text-white">
+    Supabase Edge Functions + PostgreSQL
+  </p>
+  <p className="mt-1 text-[10px] text-white/40">
+    Controlled sync, historical backfill, audit logging
+  </p>
+</div>
 
             <ArrowRight className="hidden h-4 w-4 text-white/20 md:block" />
             <ArrowDown className="h-4 w-4 text-white/20 md:hidden" />
 
-            {/* Processed */}
-            <div className="flex-1 border border-white/20 bg-white/[0.02] p-3">
-              <div className="flex items-center gap-2">
-                <Binary className="h-4 w-4 text-white/70" />
-                <p className="text-[9px] uppercase tracking-[0.2em] text-white/50">
-                  Processed Data
-                </p>
-              </div>
-              <p className="mt-2 text-sm font-semibold text-white">Standings &amp; Race Records</p>
-              <p className="mt-1 text-[10px] text-white/40">
-                Completed rounds, driver results, metrics
-              </p>
-            </div>
+            {/* Dashboard Snapshot */}
+<div className="flex-1 border border-white/20 bg-white/[0.02] p-3">
+  <div className="flex items-center gap-2">
+    <Binary className="h-4 w-4 text-white/70" />
+    <p className="text-[9px] uppercase tracking-[0.2em] text-white/50">
+      Dashboard Snapshot
+    </p>
+  </div>
+  <p className="mt-2 text-sm font-semibold text-white">
+    Supabase-First Read Model
+  </p>
+  <p className="mt-1 text-[10px] text-white/40">
+    Standings, indexed race records, metrics, fallback support
+  </p>
+</div>
 
             <ArrowRight className="hidden h-4 w-4 text-white/20 md:block" />
             <ArrowDown className="h-4 w-4 text-white/20 md:hidden" />
@@ -230,24 +310,29 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
           </div>
 
           <div className="rounded-sm border border-white/10 bg-black/10 p-3">
-            <p className="flex items-center gap-2 text-[8px] uppercase tracking-[0.18em] text-white/30">
-              <Database className="h-3 w-3 text-cyan" />
-              Local Cache Behaviour
-            </p>
-            <p className="mt-2 text-[11px] leading-relaxed text-white/70">
-              Core snapshot cached for 30 minutes. Raw session data cached for 60 minutes. Cache uses versioned envelope with expiry validation. Expired cache shows fallback indicator.
-            </p>
-          </div>
+  <p className="flex items-center gap-2 text-[8px] uppercase tracking-[0.18em] text-white/30">
+    <Database className="h-3 w-3 text-cyan" />
+    Supabase-First Read Model
+  </p>
+  <p className="mt-2 text-[11px] leading-relaxed text-white/70">
+    The React dashboard reads a Supabase-first championship snapshot backed
+    by persisted standings, indexed race results, and public read-only
+    access policies. OpenF1 remains a controlled fallback source only.
+  </p>
+</div>
 
           <div className="rounded-sm border border-white/10 bg-black/10 p-3">
-            <p className="flex items-center gap-2 text-[8px] uppercase tracking-[0.18em] text-white/30">
-              <RefreshCw className="h-3 w-3 text-cyan" />
-              Archive Reconstruction
-            </p>
-            <p className="mt-2 text-[11px] leading-relaxed text-white/70">
-              On load, APEX attempts to rebuild race history from cached session results. Missing descriptors are queued for indexing. No results are fabricated.
-            </p>
-          </div>
+  <p className="flex items-center gap-2 text-[8px] uppercase tracking-[0.18em] text-white/30">
+    <RefreshCw className="h-3 w-3 text-cyan" />
+    Controlled Ingestion &amp; Backfill
+  </p>
+  <p className="mt-2 text-[11px] leading-relaxed text-white/70">
+    Supabase Edge Functions ingest current championship entities and indexed
+    results, while controlled historical backfill batches extend verified
+    race coverage. Each ingestion run is audit logged; no results are
+    fabricated.
+  </p>
+</div>
 
           <div className="rounded-sm border border-white/10 bg-black/10 p-3">
             <p className="flex items-center gap-2 text-[8px] uppercase tracking-[0.18em] text-white/30">
@@ -638,10 +723,16 @@ export function ModelNotesPage({ data }: ModelNotesPageProps) {
             </div>
 
             <div className="rounded-sm border border-white/10 bg-black/10 p-3">
-              <p className="text-[8px] uppercase tracking-[0.18em] text-white/30">Persistence</p>
-              <p className="mt-2 text-sm font-bold text-white">Local Cache &amp; Archive</p>
-              <p className="mt-1 text-[10px] text-white/40">Versioned / Expiry-validated</p>
-            </div>
+  <p className="text-[8px] uppercase tracking-[0.18em] text-white/30">
+    Persistence
+  </p>
+  <p className="mt-2 text-sm font-bold text-white">
+    Supabase PostgreSQL
+  </p>
+  <p className="mt-1 text-[10px] text-white/40">
+    Edge-function ingestion / audit-logged backfill
+  </p>
+</div>
 
             <div className="rounded-sm border border-white/10 bg-black/10 p-3">
               <p className="text-[8px] uppercase tracking-[0.18em] text-white/30">Context Model</p>

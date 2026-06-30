@@ -37,8 +37,28 @@ export function ChampionshipHero({
   const constructorLeader = data?.teamStandings?.[0];
 
   const latestMeeting = data?.latestCompletedMeeting;
-  const completedRounds = data?.completedRounds ?? 0;
-  const totalRounds = data?.totalGrandPrix ?? 0;
+const completedRounds = data?.completedRounds ?? 0;
+const totalRounds = data?.totalGrandPrix ?? 0;
+
+const indexedRaceRounds =
+  data?.analyticsCoverage?.indexedRaceResults ?? 0;
+
+const completedRaceRounds =
+  data?.analyticsCoverage?.totalCompletedRaceSessions ?? completedRounds;
+
+const pendingRaceRounds = Math.max(
+  0,
+  completedRaceRounds - indexedRaceRounds,
+);
+
+const archiveCoveragePercent =
+  completedRaceRounds > 0
+    ? Math.round((indexedRaceRounds / completedRaceRounds) * 100)
+    : 0;
+
+const archiveIsComplete =
+  completedRaceRounds > 0 &&
+  indexedRaceRounds >= completedRaceRounds;
 
   const seasonProgress =
     totalRounds > 0
@@ -57,16 +77,23 @@ export function ChampionshipHero({
     latestMeeting?.meeting_name?.toUpperCase() || 'CURRENT VERIFIED SNAPSHOT';
 
   const dataState =
-    sourceState === 'cached'
+  sourceState === 'cached'
+    ? {
+        label: 'CACHED VERIFIED SNAPSHOT',
+        detail: 'LOCAL VERIFIED DATA LAYER ACTIVE',
+        accent: 'text-green-400',
+        dot: 'bg-green-400',
+      }
+    : archiveIsComplete
       ? {
-          label: 'CACHED VERIFIED SNAPSHOT',
-          detail: 'LOCAL VERIFIED DATA LAYER ACTIVE',
-          accent: 'text-green-400',
-          dot: 'bg-green-400',
+          label: 'VERIFIED DATA LAYER',
+          detail: 'COMPLETE RACE ARCHIVE INDEXED',
+          accent: 'text-cyan',
+          dot: 'bg-cyan',
         }
       : {
           label: 'VERIFIED DATA LAYER',
-          detail: 'CHAMPIONSHIP ARCHIVE READY',
+          detail: `${indexedRaceRounds}/${completedRaceRounds} RACE RECORDS INDEXED`,
           accent: 'text-cyan',
           dot: 'bg-cyan',
         };
@@ -214,7 +241,7 @@ export function ChampionshipHero({
               <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3 text-[11px] text-white/55">
                 <span className="flex items-center gap-2">
                   <Flag className="h-3.5 w-3.5 text-cyan" />
-                  {completedRounds} OF {totalRounds} ROUNDS INDEXED
+                  {indexedRaceRounds} OF {completedRaceRounds} RACE RESULTS INDEXED
                 </span>
 
                 <span className="flex items-center gap-2">
@@ -249,8 +276,9 @@ export function ChampionshipHero({
                 </p>
 
                 <p className="mt-3 text-[10px] leading-relaxed text-white/50">
-                  Leaderboard position is calculated only from indexed,
-                  officially completed race results.
+                  Leaderboard position is supplied by the latest verified
+championship standings. Race-level analysis is limited to
+indexed result records.
                 </p>
               </div>
             </div>
@@ -343,8 +371,8 @@ export function ChampionshipHero({
                       {seasonProgress}%
                     </p>
                     <p className="text-[8px] tracking-[0.14em] text-white/35">
-                      INDEXED
-                    </p>
+  CALENDAR STAGE
+</p>
                   </div>
                 </div>
 
@@ -396,14 +424,19 @@ export function ChampionshipHero({
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-white/45">
-                    Verified rounds
-                  </span>
+  <span className="text-[10px] text-white/45">
+    Indexed race records
+  </span>
 
-                  <span className="text-[10px] font-bold text-cyan">
-                    {completedRounds} / {totalRounds}
-                  </span>
-                </div>
+  <span className="text-[10px] font-bold text-cyan">
+    {indexedRaceRounds} / {completedRaceRounds}
+  </span>
+</div>
+{pendingRaceRounds > 0 && (
+  <p className="text-[8px] tracking-[0.12em] text-amber/70">
+    {pendingRaceRounds} SOURCE RECORDS PENDING
+  </p>
+)}
               </div>
             </div>
 
@@ -427,9 +460,10 @@ export function ChampionshipHero({
                 </p>
 
                 <p className="mt-2 text-[10px] leading-relaxed text-white/45">
-                  CALIBRATING — sufficient verified race coverage is required
-                  before predictive outputs are enabled.
-                </p>
+  SCENARIO OUTLOOK ACTIVE — event-level projections use the current
+  verified archive. Title-win probabilities remain withheld while
+  verified race coverage continues to expand.
+</p>
               </div>
             </div>
 

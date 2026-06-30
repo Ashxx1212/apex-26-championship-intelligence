@@ -847,7 +847,7 @@ export function CommandCentrePanel({
                 <p className="mt-1 text-2xl font-black text-white">
                   {completedRounds}
                 </p>
-                <p className="text-[9px] text-white/35">verified rounds</p>
+                <p className="text-[9px] text-white/35">calendar rounds</p>
               </div>
 
               <div className="border border-white/[0.10] bg-black/[0.20] px-3 py-3">
@@ -953,8 +953,8 @@ export function CommandCentrePanel({
                 <div className="flex items-center gap-2">
                   <TimerReset className="h-3.5 w-3.5 text-amber" />
                   <p className="text-[9px] tracking-[0.15em] text-white/35 uppercase">
-                    Auto-Sync Control
-                  </p>
+  Live Refresh Control
+</p>
                 </div>
 
                 <p className="mt-2 text-[11px] font-semibold tracking-wide text-green-400">
@@ -1565,8 +1565,9 @@ export function CommandCentrePanel({
           </div>
 
           <p className="text-[9px] tracking-[0.14em] text-white/30">
-            {completedRounds} OF {totalRounds} ROUNDS INDEXED
-          </p>
+  {completedRounds} COMPLETED CALENDAR ROUNDS · {archiveIndexed}/
+  {archiveCompleted} VERIFIED RACE RECORDS INDEXED
+</p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-3">
@@ -1631,7 +1632,7 @@ export function CommandCentrePanel({
       </div>
 
       {/* Debrief + Grid signals */}
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.18fr_0.82fr]">
+      <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[1.18fr_0.82fr]">
         <div className="overflow-hidden border border-white/[0.10] bg-[#0b0d12]/75">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.10] px-5 py-4">
             <div className="flex items-center gap-2">
@@ -1641,8 +1642,10 @@ export function CommandCentrePanel({
                   Latest Verified Debrief
                 </h2>
                 <p className="mt-0.5 text-[8px] tracking-[0.14em] text-white/30 uppercase">
-                  Latest completed official race record
-                </p>
+  {completedRounds} completed calendar rounds · {archiveIndexed}/
+  {archiveCompleted} verified race records indexed · {archiveOutstanding}{' '}
+  source records pending
+</p>
               </div>
             </div>
 

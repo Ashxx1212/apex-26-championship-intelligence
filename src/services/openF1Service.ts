@@ -12,6 +12,9 @@
 import { openF1Client, OpenF1Error } from './openF1Client';
 import { cacheService } from './cacheService';
 import { CACHE_CONFIG, OPENF1_CONFIG } from '../config/dataConfig';
+import { driverRepository } from '../repositories/driverRepository';
+import { meetingRepository } from '../repositories/meetingRepository';
+import { constructorStandingRepository } from '../repositories/constructorStandingRepository';
 import type {
   OpenF1Meeting,
   OpenF1Session,
@@ -262,8 +265,8 @@ async function fetchCoreData(
   onProgress?.('Reading 2026 meetings...');
   const cachedMeetings = cacheService.getMeetings<OpenF1Meeting[]>();
   const meetings = cachedMeetings.status === 'valid' && cachedMeetings.data
-    ? cachedMeetings.data
-    : ((await openF1Client.getMeetings(year)) as OpenF1Meeting[]);
+  ? cachedMeetings.data
+  : await meetingRepository.getMeetings(year);
 
   if (meetings.length > 0 && cachedMeetings.status !== 'valid') {
     cacheService.setMeetings(meetings);
@@ -272,8 +275,8 @@ async function fetchCoreData(
   onProgress?.('Indexing 2026 sessions...');
   const cachedSessions = cacheService.getSessions<OpenF1Session[]>();
   const sessions = cachedSessions.status === 'valid' && cachedSessions.data
-    ? cachedSessions.data
-    : ((await openF1Client.getSessions(year)) as OpenF1Session[]);
+  ? cachedSessions.data
+  : ((await openF1Client.getSessions(year)) as OpenF1Session[]);
 
   if (sessions.length > 0 && cachedSessions.status !== 'valid') {
     cacheService.setSessions(sessions);
@@ -305,23 +308,22 @@ async function fetchCoreData(
 
   onProgress?.('Reconciling driver standings...');
   // Fetch driver metadata
-  const drivers = (await openF1Client.getDrivers(
-    latestRaceSession.session_key
-  )) as OpenF1Driver[];
+  const drivers = await driverRepository.getDrivers(latestRaceSession.session_key);
 
   // Fetch championship data
   const championshipDrivers = (await openF1Client.getChampionshipDrivers(
-    latestRaceSession.session_key
-  )) as OpenF1ChampionshipDriver[];
+  latestRaceSession.session_key
+)) as OpenF1ChampionshipDriver[];
 
-  const championshipTeams = (await openF1Client.getChampionshipTeams(
+ const championshipTeams =
+  await constructorStandingRepository.getConstructorStandings(
     latestRaceSession.session_key
-  )) as OpenF1ChampionshipTeam[];
+  );
 
   onProgress?.('Fetching latest race results...');
   const latestRaceResults = (await openF1Client.getSessionResults(
-    latestRaceSession.session_key
-  )) as OpenF1SessionResult[];
+  latestRaceSession.session_key
+)) as OpenF1SessionResult[];
 
   return {
     meetings: championshipMeetings,

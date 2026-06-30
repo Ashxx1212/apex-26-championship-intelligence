@@ -215,8 +215,8 @@ export function SessionReplayDock({
                 Session Intelligence Replay
               </h2>
               <p className="mt-0.5 text-[8px] tracking-[0.14em] text-white/35 uppercase">
-                Real historical timing, race control, pit, stint and weather data
-              </p>
+  On-demand historical replay · source availability dependent
+</p>
             </div>
           </div>
 
@@ -263,11 +263,12 @@ export function SessionReplayDock({
               {meeting?.meeting_name || 'No completed Grand Prix selected'}
             </h3>
             <p className="mt-3 max-w-2xl text-[11px] leading-relaxed text-white/50">
-              Load a completed race to drive the Command Centre from real historical
-              event data. Playback processes actual position signals, interval
-              updates, laps, pit activity, race-control messages, tyre stints and
-              weather observations.
-            </p>
+  Load a completed race to review verified archive context, including
+  classified results, qualifying, laps, and gap data where indexed.
+  Optional replay enrichment requests additional historical signals from
+  OpenF1 on demand; pit, stint, race-control, and weather signals are not
+  persisted in the Supabase archive and may be unavailable.
+</p>
 
             {errorMessage && (
               <div
@@ -319,11 +320,11 @@ export function SessionReplayDock({
             </p>
             <div className="mt-4 space-y-3">
               {[
-                'Timing matrix updates from historical position signals',
-                'Session event bus from race-control and pit events',
-                'Lap, gap, stint and weather state at each replay timestamp',
-                'Playback speed and timeline scrub controls',
-              ].map((item) => (
+  'Verified classified results and qualifying context where indexed',
+  'Lap and gap signals where indexed in the archive',
+  'Optional OpenF1 replay enrichment when the public source is available',
+  'Playback speed and timeline scrub controls for loaded sessions',
+].map((item) => (
                 <div key={item} className="flex gap-2 text-[10px] leading-relaxed text-white/50">
                   <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan shadow-[0_0_8px_rgba(0,212,255,0.7)]" />
                   {item}

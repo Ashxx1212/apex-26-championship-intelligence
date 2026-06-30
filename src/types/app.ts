@@ -66,7 +66,7 @@ export function createAppError(
 /**
  * Analytics archive status
  */
-export interface AnalyticsArchiveStatus {
+export interface LegacyAnalyticsArchiveStatus {
   /** Total completed races to process */
   totalRounds: number;
   /** Number of rounds successfully processed */
@@ -112,3 +112,4 @@ export interface ModuleNotification {
   message: string;
   timestamp: number;
 }
+
