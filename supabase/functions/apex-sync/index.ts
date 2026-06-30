@@ -24,6 +24,7 @@ type OpenF1Meeting = {
 
 type OpenF1Session = {
   session_key: number;
+  meeting_key: number;
   session_name: string;
   date_end: string | null;
 };
@@ -43,12 +44,26 @@ type OpenF1Driver = {
 
 type OpenF1ChampionshipDriver = {
   driver_number: number;
+  meeting_key: number;
+  session_key: number;
+  position_current: number;
+  points_current: number;
+};
+
+type OpenF1ChampionshipTeam = {
+  meeting_key: number;
+  session_key: number;
+  team_name: string;
   position_current: number;
   points_current: number;
 };
 
 function sleep(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function normaliseName(value: string) {
+  return value.trim().toLowerCase();
 }
 
 function getRetryDelayMilliseconds(response: Response, attempt: number) {
@@ -76,7 +91,6 @@ async function fetchJson<T>(
     if (response.ok) {
       const data = (await response.json()) as T;
 
-      // Keeps sequential OpenF1 requests comfortably below its rate limit.
       await sleep(750);
 
       return data;
@@ -119,8 +133,6 @@ async function fetchOptionalJson<T>(
 
     const responseText = await response.text();
 
-    // OpenF1 can return this while a valid optional dataset
-    // has not yet been published for a race session.
     if (
       response.status === 404 &&
       responseText.toLowerCase().includes("no results found")
@@ -162,6 +174,17 @@ function getLatestCompletedRaceSession(sessions: OpenF1Session[]) {
     );
 
   return completedRaceSessions[0] ?? null;
+}
+
+function calculatePerformanceIndex(
+  teamPoints: number,
+  leaderPoints: number,
+) {
+  if (leaderPoints <= 0) {
+    return 0;
+  }
+
+  return Number(((teamPoints / leaderPoints) * 100).toFixed(2));
 }
 
 export default {
@@ -251,6 +274,12 @@ export default {
           `${OPENF1_BASE_URL}/championship_drivers?session_key=${latestRaceSession.session_key}`,
         );
 
+      const openF1TeamStandings =
+        await fetchOptionalJson<OpenF1ChampionshipTeam[]>(
+          "championship_teams",
+          `${OPENF1_BASE_URL}/championship_teams?session_key=${latestRaceSession.session_key}`,
+        );
+
       const teamMap = new Map<
         string,
         {
@@ -264,7 +293,7 @@ export default {
           continue;
         }
 
-        teamMap.set(driver.team_name, {
+        teamMap.set(normaliseName(driver.team_name), {
           team_name: driver.team_name,
           team_colour: driver.team_colour ?? null,
         });
@@ -290,7 +319,6 @@ export default {
         team_colour: team.team_colour,
       }));
 
-      // Delete child rows before parent rows because of UUID foreign keys.
       const { error: driverStandingsDeleteError } = await supabase
         .from("driver_standings")
         .delete()
@@ -299,6 +327,17 @@ export default {
       if (driverStandingsDeleteError) {
         throw new Error(
           `Driver standings delete failed: ${driverStandingsDeleteError.message}`,
+        );
+      }
+
+      const { error: teamStandingsDeleteError } = await supabase
+        .from("team_standings")
+        .delete()
+        .eq("season", SEASON);
+
+      if (teamStandingsDeleteError) {
+        throw new Error(
+          `Team standings delete failed: ${teamStandingsDeleteError.message}`,
         );
       }
 
@@ -358,8 +397,11 @@ export default {
         throw new Error(`Teams select failed: ${teamsSelectError.message}`);
       }
 
-      const teamIdByName = new Map(
-        (insertedTeams ?? []).map((team) => [team.team_name, team.id]),
+      const teamIdByNormalisedName = new Map(
+        (insertedTeams ?? []).map((team) => [
+          normaliseName(team.team_name),
+          team.id,
+        ]),
       );
 
       const driversToInsert = openF1Drivers.map((driver) => ({
@@ -373,7 +415,7 @@ export default {
         country_code: driver.country_code ?? null,
         headshot_url: driver.headshot_url ?? null,
         current_team_id: driver.team_name
-          ? teamIdByName.get(driver.team_name) ?? null
+          ? teamIdByNormalisedName.get(normaliseName(driver.team_name)) ?? null
           : null,
       }));
 
@@ -411,7 +453,7 @@ export default {
         (standing) => {
           const driverId = driverIdByNumber.get(standing.driver_number);
 
-          if (!driverId) {
+          if (!driverId || standing.position_current <= 0) {
             return [];
           }
 
@@ -423,7 +465,7 @@ export default {
               points: standing.points_current,
               wins: null,
               gap_to_leader: null,
-              source_meeting_key: null,
+              source_meeting_key: standing.meeting_key,
               snapshot_at: standingsSnapshotAt,
             },
           ];
@@ -442,7 +484,61 @@ export default {
         }
       }
 
+      const leaderTeamPoints = Math.max(
+        ...(openF1TeamStandings ?? []).map(
+          (standing) => standing.points_current,
+        ),
+        0,
+      );
+
+      const teamStandingsToInsert = (openF1TeamStandings ?? []).flatMap(
+        (standing) => {
+          const teamId = teamIdByNormalisedName.get(
+            normaliseName(standing.team_name),
+          );
+
+          if (!teamId || standing.position_current <= 0) {
+            return [];
+          }
+
+          return [
+            {
+              season: SEASON,
+              team_id: teamId,
+              championship_position: standing.position_current,
+              points: standing.points_current,
+              wins: 0,
+              gap_to_leader: Number(
+                (leaderTeamPoints - standing.points_current).toFixed(3),
+              ),
+              performance_index: calculatePerformanceIndex(
+                standing.points_current,
+                leaderTeamPoints,
+              ),
+              source_meeting_key: standing.meeting_key,
+              snapshot_at: standingsSnapshotAt,
+            },
+          ];
+        },
+      );
+
+      if (teamStandingsToInsert.length > 0) {
+        const { error: teamStandingsInsertError } = await supabase
+          .from("team_standings")
+          .insert(teamStandingsToInsert);
+
+        if (teamStandingsInsertError) {
+          throw new Error(
+            `Team standings insert failed: ${teamStandingsInsertError.message}`,
+          );
+        }
+      }
+
       const driverStandingsStatus = openF1DriverStandings
+        ? "SYNCED"
+        : "NOT_YET_AVAILABLE_FROM_OPENF1";
+
+      const teamStandingsStatus = openF1TeamStandings
         ? "SYNCED"
         : "NOT_YET_AVAILABLE_FROM_OPENF1";
 
@@ -450,7 +546,8 @@ export default {
         meetingsToInsert.length +
         teamsToInsert.length +
         driversToInsert.length +
-        driverStandingsToInsert.length;
+        driverStandingsToInsert.length +
+        teamStandingsToInsert.length;
 
       const { error: syncRunSuccessUpdateError } = await supabase
         .from("sync_runs")
@@ -466,6 +563,8 @@ export default {
             driversSynced: driversToInsert.length,
             driverStandingsSynced: driverStandingsToInsert.length,
             driverStandingsStatus,
+            teamStandingsSynced: teamStandingsToInsert.length,
+            teamStandingsStatus,
           },
         })
         .eq("id", syncRunId);
@@ -489,6 +588,8 @@ export default {
           driversSynced: driversToInsert.length,
           driverStandingsSynced: driverStandingsToInsert.length,
           driverStandingsStatus,
+          teamStandingsSynced: teamStandingsToInsert.length,
+          teamStandingsStatus,
         },
         {
           status: 200,
