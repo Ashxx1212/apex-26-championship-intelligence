@@ -91,6 +91,7 @@ async function fetchJson<T>(
     if (response.ok) {
       const data = (await response.json()) as T;
 
+      // Keep sequential requests below OpenF1's public limit.
       await sleep(750);
 
       return data;
@@ -133,6 +134,8 @@ async function fetchOptionalJson<T>(
 
     const responseText = await response.text();
 
+    // OpenF1 returns this when a valid optional dataset is not
+    // yet published for the requested completed race session.
     if (
       response.status === 404 &&
       responseText.toLowerCase().includes("no results found")
@@ -245,6 +248,7 @@ export default {
 
       syncRunId = syncRun.id;
 
+      // 1. Download source data.
       const meetings = await fetchJson<OpenF1Meeting[]>(
         "meetings",
         `${OPENF1_BASE_URL}/meetings?year=${SEASON}`,
@@ -280,6 +284,7 @@ export default {
           `${OPENF1_BASE_URL}/championship_teams?session_key=${latestRaceSession.session_key}`,
         );
 
+      // 2. Build unique constructor records from driver data.
       const teamMap = new Map<
         string,
         {
@@ -299,9 +304,11 @@ export default {
         });
       }
 
-      const meetingsToInsert = meetings.map((meeting) => ({
-        season: SEASON,
+      const syncTimestamp = new Date().toISOString();
+
+      const meetingsToUpsert = meetings.map((meeting) => ({
         meeting_key: meeting.meeting_key,
+        season: SEASON,
         meeting_name: meeting.meeting_name,
         meeting_official_name: meeting.meeting_official_name,
         location: meeting.location,
@@ -311,81 +318,39 @@ export default {
         circuit_short_name: meeting.circuit_short_name,
         date_start: meeting.date_start,
         date_end: meeting.date_end,
+        source_updated_at: syncTimestamp,
+        updated_at: syncTimestamp,
       }));
 
-      const teamsToInsert = Array.from(teamMap.values()).map((team) => ({
+      const teamsToUpsert = Array.from(teamMap.values()).map((team) => ({
         season: SEASON,
         team_name: team.team_name,
         team_colour: team.team_colour,
+        updated_at: syncTimestamp,
       }));
 
-      const { error: driverStandingsDeleteError } = await supabase
-        .from("driver_standings")
-        .delete()
-        .eq("season", SEASON);
-
-      if (driverStandingsDeleteError) {
-        throw new Error(
-          `Driver standings delete failed: ${driverStandingsDeleteError.message}`,
-        );
-      }
-
-      const { error: teamStandingsDeleteError } = await supabase
-        .from("team_standings")
-        .delete()
-        .eq("season", SEASON);
-
-      if (teamStandingsDeleteError) {
-        throw new Error(
-          `Team standings delete failed: ${teamStandingsDeleteError.message}`,
-        );
-      }
-
-      const { error: driversDeleteError } = await supabase
-        .from("drivers")
-        .delete()
-        .eq("season", SEASON);
-
-      if (driversDeleteError) {
-        throw new Error(`Drivers delete failed: ${driversDeleteError.message}`);
-      }
-
-      const { error: teamsDeleteError } = await supabase
-        .from("teams")
-        .delete()
-        .eq("season", SEASON);
-
-      if (teamsDeleteError) {
-        throw new Error(`Teams delete failed: ${teamsDeleteError.message}`);
-      }
-
-      const { error: meetingsDeleteError } = await supabase
+      // 3. UPSERT instead of delete + insert.
+      // This preserves existing UUIDs used by standings and future race results.
+      const { error: meetingsUpsertError } = await supabase
         .from("meetings")
-        .delete()
-        .eq("season", SEASON);
+        .upsert(meetingsToUpsert, {
+          onConflict: "meeting_key",
+        });
 
-      if (meetingsDeleteError) {
+      if (meetingsUpsertError) {
         throw new Error(
-          `Meetings delete failed: ${meetingsDeleteError.message}`,
+          `Meetings upsert failed: ${meetingsUpsertError.message}`,
         );
       }
 
-      const { error: meetingsInsertError } = await supabase
-        .from("meetings")
-        .insert(meetingsToInsert);
-
-      if (meetingsInsertError) {
-        throw new Error(
-          `Meetings insert failed: ${meetingsInsertError.message}`,
-        );
-      }
-
-      const { error: teamsInsertError } = await supabase
+      const { error: teamsUpsertError } = await supabase
         .from("teams")
-        .insert(teamsToInsert);
+        .upsert(teamsToUpsert, {
+          onConflict: "season,team_name",
+        });
 
-      if (teamsInsertError) {
-        throw new Error(`Teams insert failed: ${teamsInsertError.message}`);
+      if (teamsUpsertError) {
+        throw new Error(`Teams upsert failed: ${teamsUpsertError.message}`);
       }
 
       const { data: insertedTeams, error: teamsSelectError } = await supabase
@@ -404,7 +369,7 @@ export default {
         ]),
       );
 
-      const driversToInsert = openF1Drivers.map((driver) => ({
+      const driversToUpsert = openF1Drivers.map((driver) => ({
         season: SEASON,
         driver_number: driver.driver_number,
         full_name: driver.full_name,
@@ -417,15 +382,18 @@ export default {
         current_team_id: driver.team_name
           ? teamIdByNormalisedName.get(normaliseName(driver.team_name)) ?? null
           : null,
+        updated_at: syncTimestamp,
       }));
 
-      const { error: driversInsertError } = await supabase
+      const { error: driversUpsertError } = await supabase
         .from("drivers")
-        .insert(driversToInsert);
+        .upsert(driversToUpsert, {
+          onConflict: "season,driver_number",
+        });
 
-      if (driversInsertError) {
+      if (driversUpsertError) {
         throw new Error(
-          `Drivers insert failed: ${driversInsertError.message}`,
+          `Drivers upsert failed: ${driversUpsertError.message}`,
         );
       }
 
@@ -447,9 +415,9 @@ export default {
         ]),
       );
 
-      const standingsSnapshotAt = new Date().toISOString();
-
-      const driverStandingsToInsert = (openF1DriverStandings ?? []).flatMap(
+      // 4. Refresh current driver standings through UPSERT.
+      // Existing rows remain untouched if OpenF1 temporarily has no dataset.
+      const driverStandingsToUpsert = (openF1DriverStandings ?? []).flatMap(
         (standing) => {
           const driverId = driverIdByNumber.get(standing.driver_number);
 
@@ -466,24 +434,27 @@ export default {
               wins: null,
               gap_to_leader: null,
               source_meeting_key: standing.meeting_key,
-              snapshot_at: standingsSnapshotAt,
+              snapshot_at: syncTimestamp,
             },
           ];
         },
       );
 
-      if (driverStandingsToInsert.length > 0) {
-        const { error: driverStandingsInsertError } = await supabase
+      if (driverStandingsToUpsert.length > 0) {
+        const { error: driverStandingsUpsertError } = await supabase
           .from("driver_standings")
-          .insert(driverStandingsToInsert);
+          .upsert(driverStandingsToUpsert, {
+            onConflict: "season,driver_id",
+          });
 
-        if (driverStandingsInsertError) {
+        if (driverStandingsUpsertError) {
           throw new Error(
-            `Driver standings insert failed: ${driverStandingsInsertError.message}`,
+            `Driver standings upsert failed: ${driverStandingsUpsertError.message}`,
           );
         }
       }
 
+      // 5. Refresh constructor standings through UPSERT.
       const leaderTeamPoints = Math.max(
         ...(openF1TeamStandings ?? []).map(
           (standing) => standing.points_current,
@@ -491,7 +462,7 @@ export default {
         0,
       );
 
-      const teamStandingsToInsert = (openF1TeamStandings ?? []).flatMap(
+      const teamStandingsToUpsert = (openF1TeamStandings ?? []).flatMap(
         (standing) => {
           const teamId = teamIdByNormalisedName.get(
             normaliseName(standing.team_name),
@@ -516,20 +487,23 @@ export default {
                 leaderTeamPoints,
               ),
               source_meeting_key: standing.meeting_key,
-              snapshot_at: standingsSnapshotAt,
+              snapshot_at: syncTimestamp,
+              updated_at: syncTimestamp,
             },
           ];
         },
       );
 
-      if (teamStandingsToInsert.length > 0) {
-        const { error: teamStandingsInsertError } = await supabase
+      if (teamStandingsToUpsert.length > 0) {
+        const { error: teamStandingsUpsertError } = await supabase
           .from("team_standings")
-          .insert(teamStandingsToInsert);
+          .upsert(teamStandingsToUpsert, {
+            onConflict: "season,team_id",
+          });
 
-        if (teamStandingsInsertError) {
+        if (teamStandingsUpsertError) {
           throw new Error(
-            `Team standings insert failed: ${teamStandingsInsertError.message}`,
+            `Team standings upsert failed: ${teamStandingsUpsertError.message}`,
           );
         }
       }
@@ -543,11 +517,11 @@ export default {
         : "NOT_YET_AVAILABLE_FROM_OPENF1";
 
       const recordsUpserted =
-        meetingsToInsert.length +
-        teamsToInsert.length +
-        driversToInsert.length +
-        driverStandingsToInsert.length +
-        teamStandingsToInsert.length;
+        meetingsToUpsert.length +
+        teamsToUpsert.length +
+        driversToUpsert.length +
+        driverStandingsToUpsert.length +
+        teamStandingsToUpsert.length;
 
       const { error: syncRunSuccessUpdateError } = await supabase
         .from("sync_runs")
@@ -557,13 +531,14 @@ export default {
           records_upserted: recordsUpserted,
           details: {
             season: SEASON,
+            syncStrategy: "UPSERT_CORE_ENTITIES",
             latestRaceSessionKey: latestRaceSession.session_key,
-            meetingsSynced: meetingsToInsert.length,
-            teamsSynced: teamsToInsert.length,
-            driversSynced: driversToInsert.length,
-            driverStandingsSynced: driverStandingsToInsert.length,
+            meetingsSynced: meetingsToUpsert.length,
+            teamsSynced: teamsToUpsert.length,
+            driversSynced: driversToUpsert.length,
+            driverStandingsSynced: driverStandingsToUpsert.length,
             driverStandingsStatus,
-            teamStandingsSynced: teamStandingsToInsert.length,
+            teamStandingsSynced: teamStandingsToUpsert.length,
             teamStandingsStatus,
           },
         })
@@ -582,13 +557,14 @@ export default {
           function: "apex-sync",
           season: SEASON,
           source: "OpenF1",
+          syncStrategy: "UPSERT_CORE_ENTITIES",
           latestRaceSessionKey: latestRaceSession.session_key,
-          meetingsSynced: meetingsToInsert.length,
-          teamsSynced: teamsToInsert.length,
-          driversSynced: driversToInsert.length,
-          driverStandingsSynced: driverStandingsToInsert.length,
+          meetingsSynced: meetingsToUpsert.length,
+          teamsSynced: teamsToUpsert.length,
+          driversSynced: driversToUpsert.length,
+          driverStandingsSynced: driverStandingsToUpsert.length,
           driverStandingsStatus,
-          teamStandingsSynced: teamStandingsToInsert.length,
+          teamStandingsSynced: teamStandingsToUpsert.length,
           teamStandingsStatus,
         },
         {
