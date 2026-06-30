@@ -45,7 +45,6 @@ type OpenF1ChampionshipDriver = {
   driver_number: number;
   position_current: number;
   points_current: number;
-  wins_current: number;
 };
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -127,8 +126,8 @@ export default {
       );
 
       const openF1DriverStandings = await fetchJson<OpenF1ChampionshipDriver[]>(
-        `${OPENF1_BASE_URL}/championship?session_key=${latestRaceSession.session_key}`,
-      );
+  `${OPENF1_BASE_URL}/championship_drivers?session_key=${latestRaceSession.session_key}`,
+);
 
       const teamMap = new Map<string, { team_name: string; team_colour: string | null }>();
 
@@ -242,7 +241,7 @@ export default {
             driver_id: driverId,
             championship_position: standing.position_current,
             points: standing.points_current,
-            wins: standing.wins_current,
+            wins: null,
             gap_to_leader: null,
             source_meeting_key: null,
             snapshot_at: new Date().toISOString(),
